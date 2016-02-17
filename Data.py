@@ -1,4 +1,4 @@
-import os
+import ntpath
 import btk
 import numpy
 
@@ -14,14 +14,25 @@ class Data():
 		self.dataFile = ''
 		
 		
-	def loadData(self, dataPath, dataFile):
-		self.dataPath = dataPath
-		self.dataFile = dataFile
+	def loadData(self, path):
+		if not ntpath.isfile(path):
+			print 'Can not open ' + path
+			return
+		
+		self.dataPath, self.dataFile = ntpath.split(path)
+		
+		print self.dataPath
+		print self.dataFile
 		
 		reader = btk.btkAcquisitionFileReader()
-		reader.SetFilename(os.path.join(self.dataPath, self.dataFile))
+		reader.SetFilename(path)
 		reader.Update()
 		self.acq = reader.GetOutput()
 		
+		self.frequency = self.acq.GetPointFrequency()
+		self.totalFrame = self.acq.GetPointFrameNumber()
+		self.totalPoint = self.acq.GetPointNumber()
+		
 		print self.acq.GetPointFrequency()
 		print self.acq.GetPointFrameNumber()
+		print self.acq.GetPointNumber()
