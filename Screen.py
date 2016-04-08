@@ -1,4 +1,6 @@
-from PyQt4 import QtCore, QtGui
+from PyQt4 import QtCore, QtGui, QtOpenGL
+
+from GLRenderArea import GLRenderArea
 
 
 class ScreenManager():
@@ -27,6 +29,11 @@ class Screen(QtGui.QMainWindow):
 			print 'new sub window'
 		
 		self.initUI()
+		
+		# self.timer = QtCore.QTimer(self)
+		# self.timer.setInterval(10)
+		# self.timer.timeout.connect(self.updateTimer)
+		# self.timer.start()
 
 		
 	def initUI(self):
@@ -45,10 +52,16 @@ class Screen(QtGui.QMainWindow):
 			filemenu.addSeparator()
 			filemenu.addAction(exitAction)
 		
+		# Explicitly ask for legacy OpenGL version to keep maximum compatibility across different operating systems
+		fmt = QtOpenGL.QGLFormat()
+		fmt.setVersion(2, 1)
+		fmt.setProfile(QtOpenGL.QGLFormat.CoreProfile)
+		fmt.setSampleBuffers(True)
+		self.glRenderArea = GLRenderArea(self, fmt)
 		self.centralTab = QtGui.QTabWidget()
 		# self.centralTab.setTabPosition(QtGui.QTabWidget.West)
 		# self.centralTab.setTabShape(QtGui.QTabWidget.Triangular)
-		self.centralTab.addTab(QtGui.QWidget(), '3D View')
+		self.centralTab.addTab(self.glRenderArea, '3D View')
 		self.centralTab.addTab(QtGui.QWidget(), '2D View')
 		
 		self.setCentralWidget(self.centralTab)
@@ -75,3 +88,8 @@ class Screen(QtGui.QMainWindow):
 			self.data.loadData(path)
 		else:
 			event.ignore()
+			
+			
+	# def updateTimer(self):
+	# 	print 'screen update'
+	# 	self.update()
