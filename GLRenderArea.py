@@ -37,10 +37,30 @@ void main()
 }
 """
 
+FRAGMENT_MARKER_SHADER = """
+#version 120
+
+varying vec4 frag_color;
+
+void main()
+{
+	/*vec2 coord = gl_PointCoord - vec2(0.5);
+	if (length(coord) > 0.5)
+		discard;*/
+	gl_FragColor = frag_color;
+	/*gl_FragColor.a = 0.5 - length(coord);*/
+}
+"""
+
 
 class GLRenderArea(QtOpenGL.QGLWidget):
 
-	def __init__(self, screen, fmt):	
+	def __init__(self, screen):
+		# Explicitly ask for legacy OpenGL version to keep maximum compatibility across different operating systems
+		fmt = QtOpenGL.QGLFormat()
+		fmt.setVersion(2, 1)
+		fmt.setProfile(QtOpenGL.QGLFormat.CoreProfile)
+		fmt.setSampleBuffers(True)		
 		super(GLRenderArea, self).__init__(fmt, parent = screen)
 	
 		self.setAutoFillBackground(False)
@@ -54,6 +74,9 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		self.zTrans = 0.0
 		
 		self.lastPos = QtCore.QPoint()
+		
+		self.testVertexBuffer = []
+		self.testColorBuffer = []
 		
 		self.autoCam = False
 		self.ortho = False
@@ -69,28 +92,26 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 				
 		self.programCompiled = False
 		
-		# self.currentFrame = self.syncTimer.viconData.getFrameGLRender(0)
-		# self.frame = self.syncTimer.frame
-		# self.updateInterval = self.syncTimer.updateInterval
-		# self.pause = self.syncTimer.pause
+		self.currentFrame = 0
+		self.frameData = None
+		
 		self.timer = QtCore.QTimer(self)
 		self.timer.setInterval(10)
 		self.timer.timeout.connect(self.updateTimer)
 		self.timer.start()
+
 
 	def closeEvent(self, event):
 		print 'glArea closing'
 		self.timer.stop()
 		print 'glArea closed'
 		
+		
 	def minimumSizeHint(self):
 		return QtCore.QSize(800, 600)
-	
-	def initializeGL(self):
-		pass
+		
 
-	def paintEvent(self, event):
-	
+	def paintEvent(self, event):	
 		# On OS X, when using QGLWidget, it is possible that the opengl draw framebuffer is not
 		# completely constructed before entering paint event.
 		# We just omit all paint event before framebuffer is fully initialized.
@@ -104,7 +125,9 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		if not self.programCompiled:
 			self.vertexShader = shaders.compileShader(VERTEX_SHADER, GL.GL_VERTEX_SHADER)
 			self.fragmentShader = shaders.compileShader(FRAGMENT_SHADER, GL.GL_FRAGMENT_SHADER)
+			self.fragmentMarkerShader = shaders.compileShader(	FRAGMENT_MARKER_SHADER, GL.GL_FRAGMENT_SHADER)
 			self.shader = shaders.compileProgram(self.vertexShader, self.fragmentShader)
+			self.markerShader = shaders.compileProgram(self.vertexShader, self.fragmentMarkerShader)
 			self.programCompiled = True
 	
 		GL.glShadeModel(GL.GL_FLAT)
@@ -117,10 +140,8 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		GL.glEnable(GL.GL_BLEND)
 		GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
 		
-		# tv = math.tan(self.parameterDialog.getVerticalFOV() * 0.5 / 180 * math.pi)
-		# th = math.tan(self.parameterDialog.getHorizontalFOV() * 0.5 / 180 * math.pi)
-		tv = 1
-		th = 1
+		tv = math.tan(self.screen.parameterDialog.getVerticalFOV() * 0.5 / 180 * math.pi)
+		th = math.tan(self.screen.parameterDialog.getHorizontalFOV() * 0.5 / 180 * math.pi)
 		viewport_width = self.width()
 		viewport_height = int(viewport_width * (tv / th))
 		GL.glViewport((self.width() - viewport_width) / 2, (self.height() - viewport_height) / 2, viewport_width, viewport_height)
@@ -128,11 +149,13 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 		
 		self.updateCamera()				
-		self.drawCoords()		
+		self.drawCoords()
+		GL.glEnable(GL.GL_DEPTH_TEST)
+		self.openGLDraw(self.markerShader, GL.GL_LINES, self.testVertexBuffer, self.testColorBuffer)
+		GL.glDisable(GL.GL_DEPTH_TEST)
 		# self.drawSegments()
-		# self.drawModels()
 		# self.drawCones()
-		# self.drawMarkers()
+		self.drawMarkers()
 		
 		GL.glDisable(GL.GL_CULL_FACE)
 		GL.glDisable(GL.GL_DEPTH_TEST)
@@ -173,45 +196,197 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			self.camera.setTransZ(self.zTrans * 0.01)
 			self.camera.setOrtho(self.ortho)
 			
-		# self.camera.setFovH(self.parameterDialog.getHorizontalFOV())
-		self.camera.setFovH(60)
-		# self.camera.setFovV(self.parameterDialog.getVerticalFOV())
-		self.camera.setFovV(60)
+		self.camera.setFovH(self.screen.parameterDialog.getHorizontalFOV())
+		self.camera.setFovV(self.screen.parameterDialog.getVerticalFOV())
+		
 		
 	def drawCoords(self):
 		GL.glDisable(GL.GL_DEPTH_TEST)
-		max = 10.0
-		# max = self.parameterDialog.getGridSpacing() / self.syncTimer.viconData.max3D * self.parameterDialog.getGridLineCount()
-		# if self.parameterDialog.getGridVisibility() and self.parameterDialog.getGridWidth() > 0 and self.parameterDialog.getGridSpacing() > 0:
-			# quadrillage sur le sol			
-		vertexBuffer = []
-		vertexBuffer.append((-max, 0, 0))
-		vertexBuffer.append((max, 0, 0))
-		vertexBuffer.append((0, 0, -max))
-		vertexBuffer.append((0, 0, max))
-		for i in numpy.arange(5 / max, max + 5 / max * 0.5, 5 / max):
-			vertexBuffer.append((-max, 0, i))
-			vertexBuffer.append((max, 0, i))
-			vertexBuffer.append((-max, 0, -i))
-			vertexBuffer.append((max, 0, -i))
+		spacing = 1
+		max = 5
+		if self.screen.data.acq:
+			spacing = self.screen.parameterDialog.getGridSpacing() / self.screen.data.maxDataValue
+			max = spacing * self.screen.parameterDialog.getGridLineCount()
 		
-			vertexBuffer.append((i, 0, -max))
-			vertexBuffer.append((i, 0, max))
-			vertexBuffer.append((-i, 0, -max))
-			vertexBuffer.append((-i, 0, max))			
+		if self.screen.parameterDialog.getGridVisibility() and self.screen.parameterDialog.getGridWidth() > 0 and self.screen.parameterDialog.getGridLineCount() > 0:				
+			vertexBuffer = []
+			vertexBuffer.append((-max, 0, 0))
+			vertexBuffer.append((max, 0, 0))
+			vertexBuffer.append((0, 0, -max))
+			vertexBuffer.append((0, 0, max))
+			for i in numpy.arange(spacing, max + spacing * 0.5, spacing):
+				vertexBuffer.append((-max, 0, i))
+				vertexBuffer.append((max, 0, i))
+				vertexBuffer.append((-max, 0, -i))
+				vertexBuffer.append((max, 0, -i))
 			
-		# GL.glLineWidth (self.parameterDialog.getGridWidth())
-		GL.glUseProgram(self.shader)
-		mvpID = GL.glGetUniformLocation(self.shader, 'mvp')
-		GL.glUniformMatrix4fv(mvpID, 1, GL.GL_TRUE, self.camera.getMVP())
-		vertexBuffer = numpy.array(vertexBuffer, numpy.float32)
-		colorBuffer = numpy.empty(len(vertexBuffer) * 4)
-		colorBuffer.fill(0.6)
+				vertexBuffer.append((i, 0, -max))
+				vertexBuffer.append((i, 0, max))
+				vertexBuffer.append((-i, 0, -max))
+				vertexBuffer.append((-i, 0, max))
+				
+			colorBuffer = numpy.empty(len(vertexBuffer) * 4)
+			colorBuffer.fill(0.6)
+			
+			GL.glLineWidth (self.screen.parameterDialog.getGridWidth())
+			self.openGLDraw(self.shader, GL.GL_LINES, vertexBuffer, colorBuffer)	
 		
-		# On OS X, attributes in GLSL shaders do not have default position,
-		# we should always use glGetAttribLocation to retrieve their positions.
-		posID = GL.glGetAttribLocation(self.shader, 'pos')
-		colorID = GL.glGetAttribLocation(self.shader, 'vertex_color')
+		if self.screen.parameterDialog.getAxisVisibility():
+			vertexBuffer = []
+			vertexBuffer.append((0, 0, 0))
+			vertexBuffer.append((max, 0, 0))
+			vertexBuffer.append((0, 0, 0))
+			vertexBuffer.append((0, 0, -max))
+			vertexBuffer.append((0, 0, 0))
+			vertexBuffer.append((0, max, 0))
+			
+			colorBuffer = []
+			colorBuffer.append((1, 0, 0, 0.4))
+			colorBuffer.append((1, 0, 0, 0.4))
+			colorBuffer.append((0, 1, 0, 0.4))
+			colorBuffer.append((0, 1, 0, 0.4))
+			colorBuffer.append((0, 0, 1, 0.4))
+			colorBuffer.append((0, 0, 1, 0.4))
+			
+			GL.glLineWidth (self.screen.parameterDialog.getAxisWidth())
+			self.openGLDraw(self.shader, GL.GL_LINES, vertexBuffer, colorBuffer)
+		
+		
+	def drawMarkers(self):
+		if self.frameData and self.screen.parameterDialog.getPointSize() > 0:
+			vertexBuffer = []
+			colorBuffer = []
+			trajVertexBuffer = []
+			trajVertexStart = []
+			trajVertexCount = []
+			trajColorBuffer = []
+			
+			GL.glDisable(GL.GL_DEPTH_TEST)
+			
+			max = self.screen.data.getMaxDataValue()
+			for i in range(self.frameData.GetItemNumber()):
+				pt = self.frameData.GetItem(i)
+				color = (1, 1, 1, 1)
+				colorBuffer.append(color[0])
+				colorBuffer.append(color[1])
+				colorBuffer.append(color[2])
+				colorBuffer.append(color[3])
+				
+				
+				x = pt.GetValue(self.currentFrame, 0) / max
+				z = -pt.GetValue(self.currentFrame, 1) / max
+				y = pt.GetValue(self.currentFrame, 2) / max
+				vertexBuffer.append(x)
+				vertexBuffer.append(y)
+				vertexBuffer.append(z)
+				
+				# print x, y, z
+				
+				# if not pt in self.screen.mask3D and not numpy.isnan(self.syncTimer.viconData.getValueGLRender(self.currentFrame, pt + ':X')):
+				# 	if pt in self.screen.colorDict:
+				# 		color = (self.screen.colorDict[pt].redF(), self.screen.colorDict[pt].greenF(), self.screen.colorDict[pt].blueF(), self.screen.colorDict[pt].alphaF())
+				# 	else:
+				# 		color = (1, 1, 1, 0.7)
+				# 	colorBuffer.append(color[0])
+				# 	colorBuffer.append(color[1])
+				# 	colorBuffer.append(color[2])
+				# 	colorBuffer.append(color[3])
+						
+				# 	x, y, z = self.syncTimer.viconData.getValueGLRender(self.currentFrame, pt + ':Y'), self.syncTimer.viconData.getValueGLRender(self.currentFrame, pt + ':Z'), self.syncTimer.viconData.getValueGLRender(self.currentFrame, pt + ':X')
+				# 	vertexBuffer.append(x)
+				# 	vertexBuffer.append(y)
+				# 	vertexBuffer.append(z)
+					
+					# if not pt in self.screen.maskTraj and self.parameterDialog.getTrajectoryWidth() > 0:
+					# 	trajX = self.syncTimer.viconData.getTrajectory(self.currentFrame, pt + ':Y', self.parameterDialog.getTrajectoryLength())
+					# 	trajY = self.syncTimer.viconData.getTrajectory(self.currentFrame, pt + ':Z', self.parameterDialog.getTrajectoryLength())
+					# 	trajZ = self.syncTimer.viconData.getTrajectory(self.currentFrame, pt + ':X', self.parameterDialog.getTrajectoryLength())
+					# 	if len(trajVertexCount) != 0:
+					# 		trajVertexStart.append(trajVertexStart[-1] + trajVertexCount[-1])
+					# 	else:
+					# 		trajVertexStart.append(0)
+					# 	trajVertexCount.append(0)
+					# 	for i in range(0, len(trajX)):
+					# 		if not numpy.isnan(trajX[i]):
+					# 			trajVertexBuffer.append(trajX[i])
+					# 			trajVertexBuffer.append(trajY[i])
+					# 			trajVertexBuffer.append(trajZ[i])
+					# 			trajColorBuffer.append(color[0])
+					# 			trajColorBuffer.append(color[1])
+					# 			trajColorBuffer.append(color[2])
+					# 			trajColorBuffer.append(color[3])
+					# 			trajVertexCount[-1] += 1
+					
+					# if not pt in self.screen.maskTag:
+					# 	GL.glLoadIdentity()
+					# 	GL.glLoadMatrixf(self.camera.transpose(self.camera.getMVP()))						
+					# 	self.renderText(x, y, z, pt, QtGui.QFont('Arial', 12, QtGui.QFont.Bold, False))
+					# 	GL.glLoadIdentity()
+			
+			# vertexBuffer = numpy.array(vertexBuffer, numpy.float32)
+			# colorBuffer = numpy.array(colorBuffer, numpy.float32)
+					
+			GL.glPointSize(self.screen.parameterDialog.getPointSize())
+			# GL.glLineWidth(self.parameterDialog.getTrajectoryWidth())
+			
+			GL.glEnable(GL.GL_DEPTH_TEST)
+			self.openGLDraw(self.markerShader, GL.GL_POINTS, vertexBuffer, colorBuffer)
+			# GL.glUseProgram(self.shader)
+			# mvpID = GL.glGetUniformLocation(self.shader, 'mvp')
+			# GL.glUniformMatrix4fv(mvpID, 1, GL.GL_TRUE, self.camera.getMVP())
+			
+			# posID = GL.glGetAttribLocation(self.shader, 'pos')
+			# colorID = GL.glGetAttribLocation(self.shader, 'vertex_color')
+			# GL.glEnableVertexAttribArray(posID)
+			# GL.glEnableVertexAttribArray(colorID)
+			# GL.glVertexAttribPointer(posID,
+			# 						 3,
+			# 						 GL.GL_FLOAT,
+			# 						 GL.GL_FALSE,
+			# 						 0,
+			# 						 vertexBuffer)
+			# GL.glVertexAttribPointer(colorID,
+			# 						 4,
+			# 						 GL.GL_FLOAT,
+			# 						 GL.GL_FALSE,
+			# 						 0,
+			# 						 colorBuffer)				
+			# GL.glDrawArrays(GL.GL_POINTS, 0, len(vertexBuffer) / 3)
+		
+			# trajVertexBuffer = numpy.array(trajVertexBuffer, numpy.float32)
+			# trajColorBuffer = numpy.array(trajColorBuffer, numpy.float32)
+			# GL.glVertexAttribPointer(posID,
+			# 						 3,
+			# 						 GL.GL_FLOAT,
+			# 						 GL.GL_FALSE,
+			# 						 0,
+			# 						 trajVertexBuffer)
+			# GL.glVertexAttribPointer(colorID,
+			# 						 4,
+			# 						 GL.GL_FLOAT,
+			# 						 GL.GL_FALSE,
+			# 						 0,
+			# 						 trajColorBuffer)									 
+			# GL.glMultiDrawArrays(GL.GL_LINE_STRIP, numpy.array(trajVertexStart, numpy.intc), numpy.array(trajVertexCount, numpy.intc), len(trajVertexCount))
+			
+			# GL.glDisableVertexAttribArray(posID)
+			# GL.glDisableVertexAttribArray(colorID)
+			# GL.glUseProgram(0)
+			
+			
+	def openGLDraw(self, shader, primitive, vertex, color):
+		vertexBuffer = numpy.array(vertex, numpy.float32)
+		colorBuffer = numpy.array(color, numpy.float32)
+		
+		GL.glUseProgram(shader)
+		mvpID = GL.glGetUniformLocation(shader, 'mvp')
+		GL.glUniformMatrix4fv(mvpID, 1, GL.GL_TRUE, self.camera.getMVP())
+		
+		posID = GL.glGetAttribLocation(shader, 'pos')
+		colorID = GL.glGetAttribLocation(shader, 'vertex_color')
+		GL.glEnableVertexAttribArray(posID)
+		GL.glEnableVertexAttribArray(colorID)
+		
 		GL.glVertexAttribPointer(posID,
 								 3,
 								 GL.GL_FLOAT,
@@ -223,59 +398,12 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 								 GL.GL_FLOAT,
 								 GL.GL_FALSE,
 								 0,
-								 colorBuffer)						 
-		GL.glEnableVertexAttribArray(posID)	
-		GL.glEnableVertexAttribArray(colorID)			
-		GL.glDrawArrays(GL.GL_LINES, 0, len(vertexBuffer))
+								 colorBuffer)				
+		GL.glDrawArrays(primitive, 0, len(vertexBuffer))
+		
 		GL.glDisableVertexAttribArray(posID)
 		GL.glDisableVertexAttribArray(colorID)
 		GL.glUseProgram(0)
-			
-		# if self.parameterDialog.getAxisVisibility() and self.parameterDialog.getAxisWidth() > 0:
-			# repere			
-		vertexBuffer = []
-		vertexBuffer.append((0, 0, 0))
-		vertexBuffer.append((0, 0, max))
-		vertexBuffer.append((0, 0, 0))
-		vertexBuffer.append((max, 0, 0))
-		vertexBuffer.append((0, 0, 0))
-		vertexBuffer.append((0, max, 0))
-		
-		colorBuffer = []
-		colorBuffer.append((1, 0, 0, 0.4))
-		colorBuffer.append((1, 0, 0, 0.4))
-		colorBuffer.append((0, 1, 0, 0.4))
-		colorBuffer.append((0, 1, 0, 0.4))
-		colorBuffer.append((0, 0, 1, 0.4))
-		colorBuffer.append((0, 0, 1, 0.4))
-		
-		# GL.glLineWidth (self.parameterDialog.getAxisWidth())
-		GL.glUseProgram(self.shader)
-		mvpID = GL.glGetUniformLocation(self.shader, 'mvp')
-		GL.glUniformMatrix4fv(mvpID, 1, GL.GL_TRUE, self.camera.getMVP())
-		vertexBuffer = numpy.array(vertexBuffer, numpy.float32)
-		colorBuffer = numpy.array(colorBuffer, numpy.float32)
-		posID = GL.glGetAttribLocation(self.shader, 'pos')
-		colorID = GL.glGetAttribLocation(self.shader, 'vertex_color')
-		GL.glVertexAttribPointer(posID,
-								 3,
-								 GL.GL_FLOAT,
-								 GL.GL_FALSE,
-								 0,
-								 vertexBuffer)
-		GL.glVertexAttribPointer(colorID,
-								 4,
-								 GL.GL_FLOAT,
-								 GL.GL_FALSE,
-								 0,
-								 colorBuffer)						 
-		GL.glEnableVertexAttribArray(posID)	
-		GL.glEnableVertexAttribArray(colorID)	
-		GL.glDrawArrays(GL.GL_LINES, 0, len(vertexBuffer))
-		GL.glDisableVertexAttribArray(posID)
-		GL.glDisableVertexAttribArray(colorID)
-		GL.glUseProgram(0)
-	# GL.glEnable(GL.GL_DEPTH_TEST)
 		
 		
 	def mousePressEvent(self, event):
@@ -284,9 +412,39 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		
 			
 	def mouseReleaseEvent(self, event):
-		if not self.mouseMoved and event.button() == QtCore.Qt.MiddleButton:
-			self.syncTimer.pause = not self.syncTimer.pause
-			self.pause = self.syncTimer.pause
+		if not self.mouseMoved and event.button() == QtCore.Qt.LeftButton:
+			x = event.pos().x()
+			y = event.pos().y()
+			tv = math.tan(self.camera.toRadian(self.screen.parameterDialog.getVerticalFOV()) * 0.5)
+			th = math.tan(self.camera.toRadian(self.screen.parameterDialog.getHorizontalFOV()) * 0.5)
+			viewport_width = self.width()
+			viewport_height = int(viewport_width * (tv / th))
+			# print x, y, viewport_width, viewport_height
+			x = (x - viewport_width * 0.5) / (viewport_width * 0.5)
+			# y = -(y - viewport_height * 0.5) / (viewport_height * 0.5)
+			y = -(y - self.height() * 0.5) / (viewport_height * 0.5)
+			l1 = self.camera.inverseProj(x, y, 0.1)
+			l2 = self.camera.inverseProj(x, y, 1.0)
+			# l2 = self.camera.camPos
+			# print self.camera.dot(self.camera.normalizeVec(l1), self.camera.normalizeVec(l2))
+			# print x, y, l1, l2
+			d = self.camera.dot((-l1[0], -l1[1], -l1[2]), (0, 1, 0)) / self.camera.dot((l2[0] - l1[0], l2[1] - l1[1], l2[2] - l1[2]), (0, 1, 0))
+			print 'Camera translation', self.camera.transX, self.camera.transY, self.camera.transZ
+			print (l2[0] - l1[0]) * d + l1[0], (l2[1] - l1[1]) * d + l1[1], (l2[2] - l1[2]) * d + l1[2]
+			# self.screen.data.selectMarkerByRay() 
+			# self.testVertexBuffer.append(l1[0])
+			# self.testVertexBuffer.append(l1[1])
+			# self.testVertexBuffer.append(l1[2])
+			# self.testVertexBuffer.append(l2[0])
+			# self.testVertexBuffer.append(l2[1])
+			# self.testVertexBuffer.append(l2[2])
+			self.testVertexBuffer.append(l1)
+			self.testVertexBuffer.append(l2)
+			for i in range(8):
+				self.testColorBuffer.append(1.0)
+			
+		elif not self.mouseMoved and event.button() == QtCore.Qt.MiddleButton:
+			self.screen.data.togglePaused()
 			
 			
 	def mouseMoveEvent(self, event):
@@ -296,36 +454,27 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		self.mouseMoved = True
 
 		if event.buttons() & QtCore.Qt.LeftButton and not self.autoCam:
-		# if event.buttons() & QtCore.Qt.LeftButton:
 			self.yRot += dy
 			self.zRot += dx
 			self.camera.setRotY(self.yRot / 16)
 			self.camera.setRotZ(self.zRot / 16)
 		elif event.buttons() & QtCore.Qt.MiddleButton and not self.autoCam:
-		# elif event.buttons() & QtCore.Qt.MiddleButton:
 			self.xTrans += dx
 			self.yTrans += dy
 			self.camera.setTransX(self.xTrans * 0.01)
 			self.camera.setTransY(self.yTrans * 0.01)
 		elif event.buttons() & QtCore.Qt.RightButton and not self.autoCam:
-		# elif event.buttons() & QtCore.Qt.RightButton:
-			self.zTrans += dy
+			self.zTrans -= dy
 			self.camera.setTransZ(self.zTrans * 0.01)
 
 		self.lastPos = event.pos()
 		
 		
 	def wheelEvent(self, event):
-		pass
-		# self.syncTimer.frame += numpy.sign(event.delta()) * self.parameterDialog.getScrollSpeed()
+		self.screen.data.offsetCurrentFrame(numpy.sign(event.delta()) * int(self.screen.parameterDialog.getScrollSpeed()))
 		
 		
 	def updateTimer(self):
-		# self.pause = self.syncTimer.pause
-		# self.frame = self.syncTimer.frame
-		# if self.frame >= self.syncTimer.viconData.frameCount:
-		# 	self.frame = 0
-		# self.currentFrame = self.syncTimer.viconData.getFrameGLRender(self.frame)
+		self.currentFrame = self.screen.data.getCurrentFrame()
+		self.frameData = self.screen.data.getCurrentFrameData()
 		self.update()
-		# self.screen.centralTab.currentWidget().update()
-		# self.screen.update()

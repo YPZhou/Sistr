@@ -7,7 +7,6 @@ from Screen import ScreenManager
 
 def main():
 	app = QtGui.QApplication(sys.argv)
-	print 'Preparing main window'
 	
 	data = Data()
 	screenManager = ScreenManager(data)

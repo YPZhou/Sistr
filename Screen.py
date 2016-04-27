@@ -1,6 +1,8 @@
-from PyQt4 import QtCore, QtGui, QtOpenGL
+from PyQt4 import QtCore, QtGui
 
 from GLRenderArea import GLRenderArea
+from Parameter import Parameter
+from TimerBar import TimerBar
 
 
 class ScreenManager():
@@ -9,7 +11,6 @@ class ScreenManager():
 	def __init__(self, data):
 		self.screenList = []
 		self.screenList.append(Screen(data, True))
-		# self.screenList.append(Screen(data))
 
 
 class Screen(QtGui.QMainWindow):
@@ -22,23 +23,23 @@ class Screen(QtGui.QMainWindow):
 		self.mainWindow = mainWindow
 		
 		if self.mainWindow:
-			print 'mainWindow'
+			pass
+			# print 'mainWindow'
 			# self.data.loadData('.', 'Repro_geste_standard_assis_Trial1.c3d')
 			# self.screenList = []
 		else:
-			print 'new sub window'
+			pass
+			# print 'new sub window'
 		
 		self.initUI()
 		
-		# self.timer = QtCore.QTimer(self)
-		# self.timer.setInterval(10)
-		# self.timer.timeout.connect(self.updateTimer)
-		# self.timer.start()
+		self.timer = QtCore.QTimer(self)
+		self.timer.setInterval(10)
+		self.timer.timeout.connect(self.updateTimer)
+		self.timer.start()
 
 		
-	def initUI(self):
-		print 'initialize UI'
-		
+	def initUI(self):		
 		if self.mainWindow:
 			self.setAcceptDrops(True)
 		
@@ -51,20 +52,29 @@ class Screen(QtGui.QMainWindow):
 			filemenu.addAction(openAction)
 			filemenu.addSeparator()
 			filemenu.addAction(exitAction)
-		
-		# Explicitly ask for legacy OpenGL version to keep maximum compatibility across different operating systems
-		fmt = QtOpenGL.QGLFormat()
-		fmt.setVersion(2, 1)
-		fmt.setProfile(QtOpenGL.QGLFormat.CoreProfile)
-		fmt.setSampleBuffers(True)
-		self.glRenderArea = GLRenderArea(self, fmt)
+			
+			self.parameterDialog = Parameter(self)
+			parameterAction = QtGui.QAction('Parameter', self)
+			parameterAction.triggered.connect(self.showParameterDialog)
+			
+			viewmenu = self.menuBar().addMenu('View')
+			viewmenu.addAction(parameterAction)
+
+		self.glRenderArea = GLRenderArea(self)
 		self.centralTab = QtGui.QTabWidget()
-		# self.centralTab.setTabPosition(QtGui.QTabWidget.West)
-		# self.centralTab.setTabShape(QtGui.QTabWidget.Triangular)
 		self.centralTab.addTab(self.glRenderArea, '3D View')
 		self.centralTab.addTab(QtGui.QWidget(), '2D View')
 		
-		self.setCentralWidget(self.centralTab)
+		self.timerBar = TimerBar(self)
+		
+		self.centralLayout = QtGui.QVBoxLayout()
+		self.centralLayout.addWidget(self.centralTab)
+		self.centralLayout.addWidget(self.timerBar)
+		
+		self.centralWidget = QtGui.QWidget()
+		self.centralWidget.setLayout(self.centralLayout)
+		
+		self.setCentralWidget(self.centralWidget)
 		self.show()
 		
 		
@@ -72,6 +82,10 @@ class Screen(QtGui.QMainWindow):
 		fileDialog = QtGui.QFileDialog(parent = self, caption = 'Open video file')
 		if fileDialog.exec_() == QtGui.QDialog.Accepted:
 			self.data.loadData(str(fileDialog.selectedFiles()[0]))
+			
+			
+	def showParameterDialog(self):
+		self.parameterDialog.show()
 			
 			
 	def dragEnterEvent(self, event):
@@ -90,6 +104,8 @@ class Screen(QtGui.QMainWindow):
 			event.ignore()
 			
 			
-	# def updateTimer(self):
-	# 	print 'screen update'
-	# 	self.update()
+	def updateTimer(self):
+		if self.data.acq:
+			self.timerBar.setPauseButtonChecked(self.data.paused)
+			self.timerBar.setMaximum(self.data.totalFrame)
+			self.timerBar.setValue(self.data.currentFrame)
