@@ -18,6 +18,7 @@ class Camera():
 		
 		self.ortho = False
 		self.mvp = None
+		self.invmvp = None
 		self.changed = True
 		
 	def setRotY(self, rotY):
@@ -118,6 +119,40 @@ class Camera():
 			self.changed = False
 		return self.mvp
 		
+	def getInvMVP(self):
+		# Rotation quaternion for rotY and rotZ
+		qY = self.quaternion((1, 0, 0), -self.rotY)
+		qZ = self.quaternion((0, 1, 0), self.rotZ)
+		qRot = self.normalize(self.multiplyQuat(qY, qZ))
+		
+		# Transform quaternion to rotation matrix
+		rotMat = self.matrixFromQuat(qRot)		
+		# invModelTransVec = self.multiplyMatByVec(self.transpose(rotMat), [-self.transX, -self.transY, -self.transZ])
+		# invModelTransVec = [self.transX, self.transY, self.transZ]
+		# invModelTransMat = self.matrixFromTrans(invModelTransVec)
+		# invRotMat = [rotMat[0], rotMat[4], rotMat[8], -invModelTransVec[0],
+		# 			 rotMat[1], rotMat[5], rotMat[9], -invModelTransVec[1],
+		# 			 rotMat[2], rotMat[6], rotMat[10], -invModelTransVec[2],
+		# 			 0, 0, 0, 1]
+		invRotMat = self.transpose(rotMat)
+		
+		# change base for lookat direction
+		vec = self.normalizeVec((self.camPos[0] - self.targetPos[0], self.camPos[1] - self.targetPos[1], self.camPos[2] - self.targetPos[2]))
+		viewMat = self.lookat(vec, (0, 1, 0))
+		tViewMat = self.transpose(viewMat)
+		invTransVec = self.multiplyMatByVec(tViewMat, [-self.camPos[0] - self.transX, -self.camPos[1] - self.transY, -self.camPos[2] - self.transZ])
+		# invTransVec = self.multiplyMatByVec(tViewMat, [-self.camPos[0], -self.camPos[1], -self.camPos[2]])
+		invViewMat = [tViewMat[0], tViewMat[1], tViewMat[2], -invTransVec[0],
+					  tViewMat[4], tViewMat[5], tViewMat[6], -invTransVec[1],
+					  tViewMat[8], tViewMat[9], tViewMat[10], -invTransVec[2],
+					  0, 0, 0, 1]
+		
+		# invModelViewMat = self.multiplyMatrix(invRotMat, self.multiplyMatrix(invModelTransMat, invViewMat))
+		invModelViewMat = self.multiplyMatrix(invRotMat, invViewMat)
+		self.invmvp = self.multiplyMatrix(invModelViewMat, self.invPerspective(self.fovH, self.fovV, self.near, self.far))
+		print self.multiplyMatrix(self.invmvp, self.mvp)
+		return self.invmvp
+		
 	# Converts angle from degree to radian	
 	def toRadian(self, angle):
 		return angle / 180.0 * math.pi
@@ -202,6 +237,14 @@ class Camera():
 				0, 1 / t, 0, 0,
 				0, 0, -(far + near) / (far - near), -(2 * far * near) / (far - near),
 				0, 0, -1, 0)
+				
+	def invPerspective(self, fovH, fovV, near, far):
+		r = math.tan(self.toRadian(fovH * 0.5))
+		t = math.tan(self.toRadian(fovV * 0.5))
+		return (r, 0, 0, 0,
+				0, t, 0, 0,
+				0, 0, 0, -1,
+				0, 0, -(far - near) / (2 * far * near), (far + near) / (2 * far * near))
 	
 	# Constructs an orthographic projection matrix
 	def orthographic(self, fovH, fovV, near, far):
@@ -215,39 +258,8 @@ class Camera():
 	# Inverse project 2D mouse position to world space
 	# Mouse position should be normalized to [-1, 1]
 	# Return vector unchanged if transformation matrix is not invertible
-	def inverseProj(self, mouseX, mouseY, z):
-		# Rotation quaternion for rotY and rotZ
-		qY = self.quaternion((1, 0, 0), -self.rotY)
-		qZ = self.quaternion((0, 1, 0), self.rotZ)
-		qRot = self.normalize(self.multiplyQuat(qY, qZ))
-		
-		# Transform quaternion to rotation matrix
-		rotMat = self.matrixFromQuat(qRot)
-		
-		# change base for lookat direction
-		vec = self.normalizeVec((self.camPos[0] - self.targetPos[0], self.camPos[1] - self.targetPos[1], self.camPos[2] - self.targetPos[2]))
-		viewMat = self.lookat(vec, (0, 1, 0))
-		
-		# Translation matrices for model and view, equivalent to :
-		#   modelTransMat = self.matrixFromTrans((-self.transX, -self.transY, self.transZ))
-		#   viewTransMat = self.matrixFromTrans((-self.camPos[0], -self.camPos[1], -self.camPos[2]))
-		#   transMat = self.multiplyMatrix(viewTransMat, modelTransMat)
-		transMat = self.matrixFromTrans((-self.camPos[0] - self.transX, -self.camPos[1] - self.transY, -self.camPos[2] - self.transZ))
-		
-		# Calculate model-view matrix
-		# Transformation order : viewMat -> transMat(viewTransMat -> modelTransMat) -> rotMat -> vertex
-		# Rotation should be applied before translation for model matrix
-		# Rotation should be applied after translation for view matrix
-		# In normal camera mode, 'viewMat' is an identity matrix and in first person camera mode, 'rotMat' is an identity matrix
-		modelViewMat = self.multiplyMatrix(viewMat, self.multiplyMatrix(transMat, rotMat))
-		
-		# Multiply projection matrix to the left
-		if self.ortho:
-			mvp = numpy.array(self.multiplyMatrix(self.orthographic(self.fovH, self.fovV, self.near, self.far), modelViewMat), numpy.float32)
-		else:
-			mvp = numpy.array(self.multiplyMatrix(self.perspective(self.fovH, self.fovV, self.near, self.far), modelViewMat), numpy.float32)
-			
-		unprojMat = self.invertMatrix(mvp)
+	def inverseProj(self, mouseX, mouseY, z):			
+		unprojMat = self.getInvMVP()
 		if unprojMat != None:
 			unproj = self.multiplyMatByVec(unprojMat, (mouseX, mouseY, z, 1.0))
 			if unproj[3] != 0:

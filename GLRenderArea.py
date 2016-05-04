@@ -150,8 +150,9 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		
 		self.updateCamera()				
 		self.drawCoords()
-		GL.glEnable(GL.GL_DEPTH_TEST)
-		self.openGLDraw(self.markerShader, GL.GL_LINES, self.testVertexBuffer, self.testColorBuffer)
+		GL.glDisable(GL.GL_DEPTH_TEST)
+		GL.glPointSize(10)
+		self.openGLDraw(self.markerShader, GL.GL_POINTS, self.testVertexBuffer, self.testColorBuffer)
 		GL.glDisable(GL.GL_DEPTH_TEST)
 		# self.drawSegments()
 		# self.drawCones()
@@ -415,21 +416,31 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		if not self.mouseMoved and event.button() == QtCore.Qt.LeftButton:
 			x = event.pos().x()
 			y = event.pos().y()
+			
+			# tv = math.tan(self.screen.parameterDialog.getVerticalFOV() * 0.5 / 180 * math.pi)
+			# th = math.tan(self.screen.parameterDialog.getHorizontalFOV() * 0.5 / 180 * math.pi)
+			# viewport_width = self.width()
+			# viewport_height = int(viewport_width * (tv / th))
+			# GL.glViewport((self.width() - viewport_width) / 2, (self.height() - viewport_height) / 2, viewport_width, viewport_height)
+			
 			tv = math.tan(self.camera.toRadian(self.screen.parameterDialog.getVerticalFOV()) * 0.5)
 			th = math.tan(self.camera.toRadian(self.screen.parameterDialog.getHorizontalFOV()) * 0.5)
 			viewport_width = self.width()
-			viewport_height = int(viewport_width * (tv / th))
+			viewport_height = viewport_width * (tv / th)
 			# print x, y, viewport_width, viewport_height
 			x = (x - viewport_width * 0.5) / (viewport_width * 0.5)
-			# y = -(y - viewport_height * 0.5) / (viewport_height * 0.5)
+			# x = (x - viewport_width) / 2
 			y = -(y - self.height() * 0.5) / (viewport_height * 0.5)
-			l1 = self.camera.inverseProj(x, y, 0.1)
+			# y = (self.height() - y - viewport_height) / 2
+			print event.pos().x(), event.pos().y(), x, y
+			# y = -(y - self.height() * 0.5) / (viewport_height * 0.5)
+			l1 = self.camera.inverseProj(x, y, -1.0)
 			l2 = self.camera.inverseProj(x, y, 1.0)
 			# l2 = self.camera.camPos
 			# print self.camera.dot(self.camera.normalizeVec(l1), self.camera.normalizeVec(l2))
 			# print x, y, l1, l2
 			d = self.camera.dot((-l1[0], -l1[1], -l1[2]), (0, 1, 0)) / self.camera.dot((l2[0] - l1[0], l2[1] - l1[1], l2[2] - l1[2]), (0, 1, 0))
-			print 'Camera translation', self.camera.transX, self.camera.transY, self.camera.transZ
+			# print 'Camera translation', self.xTrans * 0.01,  self.camera.transX, self.yTrans * 0.01,  self.camera.transY, self.zTrans * 0.01, self.camera.transZ
 			print (l2[0] - l1[0]) * d + l1[0], (l2[1] - l1[1]) * d + l1[1], (l2[2] - l1[2]) * d + l1[2]
 			# self.screen.data.selectMarkerByRay() 
 			# self.testVertexBuffer.append(l1[0])
@@ -440,8 +451,10 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			# self.testVertexBuffer.append(l2[2])
 			self.testVertexBuffer.append(l1)
 			self.testVertexBuffer.append(l2)
-			for i in range(8):
+			for i in range(4):
 				self.testColorBuffer.append(1.0)
+			for i in range(4):
+				self.testColorBuffer.append(0.6)
 			
 		elif not self.mouseMoved and event.button() == QtCore.Qt.MiddleButton:
 			self.screen.data.togglePaused()
