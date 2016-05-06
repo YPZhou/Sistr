@@ -111,47 +111,16 @@ class Camera():
 			
 			# Multiply projection matrix to the left
 			if self.ortho:
-				self.mvp = numpy.array(self.multiplyMatrix(self.orthographic(self.fovH, self.fovV, self.near, self.far), modelViewMat), numpy.float32)
+				self.mvp = self.multiplyMatrix(self.orthographic(self.fovH, self.fovV, self.near, self.far), modelViewMat)
 			else:
-				self.mvp = numpy.array(self.multiplyMatrix(self.perspective(self.fovH, self.fovV, self.near, self.far), modelViewMat), numpy.float32)
+				self.mvp = self.multiplyMatrix(self.perspective(self.fovH, self.fovV, self.near, self.far), modelViewMat)
 			
 			# MVP updated
 			self.changed = False
-		return self.mvp
-		
-	def getInvMVP(self):
-		# Rotation quaternion for rotY and rotZ
-		qY = self.quaternion((1, 0, 0), -self.rotY)
-		qZ = self.quaternion((0, 1, 0), self.rotZ)
-		qRot = self.normalize(self.multiplyQuat(qY, qZ))
-		
-		# Transform quaternion to rotation matrix
-		rotMat = self.matrixFromQuat(qRot)		
-		# invModelTransVec = self.multiplyMatByVec(self.transpose(rotMat), [-self.transX, -self.transY, -self.transZ])
-		# invModelTransVec = [self.transX, self.transY, self.transZ]
-		# invModelTransMat = self.matrixFromTrans(invModelTransVec)
-		# invRotMat = [rotMat[0], rotMat[4], rotMat[8], -invModelTransVec[0],
-		# 			 rotMat[1], rotMat[5], rotMat[9], -invModelTransVec[1],
-		# 			 rotMat[2], rotMat[6], rotMat[10], -invModelTransVec[2],
-		# 			 0, 0, 0, 1]
-		invRotMat = self.transpose(rotMat)
-		
-		# change base for lookat direction
-		vec = self.normalizeVec((self.camPos[0] - self.targetPos[0], self.camPos[1] - self.targetPos[1], self.camPos[2] - self.targetPos[2]))
-		viewMat = self.lookat(vec, (0, 1, 0))
-		tViewMat = self.transpose(viewMat)
-		invTransVec = self.multiplyMatByVec(tViewMat, [-self.camPos[0] - self.transX, -self.camPos[1] - self.transY, -self.camPos[2] - self.transZ])
-		# invTransVec = self.multiplyMatByVec(tViewMat, [-self.camPos[0], -self.camPos[1], -self.camPos[2]])
-		invViewMat = [tViewMat[0], tViewMat[1], tViewMat[2], -invTransVec[0],
-					  tViewMat[4], tViewMat[5], tViewMat[6], -invTransVec[1],
-					  tViewMat[8], tViewMat[9], tViewMat[10], -invTransVec[2],
-					  0, 0, 0, 1]
-		
-		# invModelViewMat = self.multiplyMatrix(invRotMat, self.multiplyMatrix(invModelTransMat, invViewMat))
-		invModelViewMat = self.multiplyMatrix(invRotMat, invViewMat)
-		self.invmvp = self.multiplyMatrix(invModelViewMat, self.invPerspective(self.fovH, self.fovV, self.near, self.far))
-		print self.multiplyMatrix(self.invmvp, self.mvp)
-		return self.invmvp
+			
+		# self.mvp will be kept as python float inside class Camera instead of numpy float32
+		# this avoid lose too much precision during calculation (for mouse picking for example)
+		return numpy.array(self.mvp, numpy.float32)
 		
 	# Converts angle from degree to radian	
 	def toRadian(self, angle):
@@ -238,13 +207,13 @@ class Camera():
 				0, 0, -(far + near) / (far - near), -(2 * far * near) / (far - near),
 				0, 0, -1, 0)
 				
-	def invPerspective(self, fovH, fovV, near, far):
-		r = math.tan(self.toRadian(fovH * 0.5))
-		t = math.tan(self.toRadian(fovV * 0.5))
-		return (r, 0, 0, 0,
-				0, t, 0, 0,
-				0, 0, 0, -1,
-				0, 0, -(far - near) / (2 * far * near), (far + near) / (2 * far * near))
+	# def invPerspective(self, fovH, fovV, near, far):
+	# 	r = math.tan(self.toRadian(fovH * 0.5))
+	# 	t = math.tan(self.toRadian(fovV * 0.5))
+	# 	return (r, 0, 0, 0,
+	# 			0, t, 0, 0,
+	# 			0, 0, 0, -1,
+	# 			0, 0, -(far - near) / (2 * far * near), (far + near) / (2 * far * near))
 	
 	# Constructs an orthographic projection matrix
 	def orthographic(self, fovH, fovV, near, far):
@@ -255,16 +224,17 @@ class Camera():
 				0, 0, -2 / (far - near), -(far + near) / (far - near),
 				0, 0, 0, 1)
 				
-	# Inverse project 2D mouse position to world space
+	# Inverse project 2D mouse position to model space (not world space)
 	# Mouse position should be normalized to [-1, 1]
 	# Return vector unchanged if transformation matrix is not invertible
 	def inverseProj(self, mouseX, mouseY, z):			
-		unprojMat = self.getInvMVP()
+		unprojMat = self.invertMatrix(self.mvp)
 		if unprojMat != None:
 			unproj = self.multiplyMatByVec(unprojMat, (mouseX, mouseY, z, 1.0))
 			if unproj[3] != 0:
-				return (unproj[0] / unproj[3], unproj[1] / unproj[3], unproj[2] / unproj[3])
-		return (mouseX, mouseY, z)
+				scale = 1.0 / unproj[3]
+				return (unproj[0] * scale, unproj[1] * scale, unproj[2] * scale)
+		return numpy.array([mouseX, mouseY, z], numpy.float32)
 				
 	# Transposes matrix 'm'
 	def transpose(self, m):
