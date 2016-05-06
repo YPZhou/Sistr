@@ -234,7 +234,7 @@ class Camera():
 			if unproj[3] != 0:
 				scale = 1.0 / unproj[3]
 				return (unproj[0] * scale, unproj[1] * scale, unproj[2] * scale)
-		return numpy.array([mouseX, mouseY, z], numpy.float32)
+		return [mouseX, mouseY, z]
 				
 	# Transposes matrix 'm'
 	def transpose(self, m):
