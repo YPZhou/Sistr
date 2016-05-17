@@ -64,6 +64,7 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		super(GLRenderArea, self).__init__(fmt, parent = screen)
 	
 		self.setAutoFillBackground(False)
+		self.setFocusPolicy(QtCore.Qt.ClickFocus)
 	
 		self.xRot = 0.0
 		self.yRot = 0.0
@@ -74,6 +75,9 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		self.zTrans = 0.0
 		
 		self.lastPos = QtCore.QPoint()
+		self.mouseMoved = False
+		self.ctrlPressed = False
+		self.shiftPressed = False
 		
 		self.autoCam = False
 		self.ortho = False
@@ -159,6 +163,7 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		GL.glDisable(GL.GL_CULL_FACE)
 		GL.glDisable(GL.GL_DEPTH_TEST)
 		
+		GL.glPointSize(5)
 		self.openGLDraw(self.shader, GL.GL_LINES, self.testVertexBuffer, self.testColorBuffer)
 		
 		painter = QtGui.QPainter(self)
@@ -269,7 +274,7 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 				pt = self.frameData.GetItem(i)
 				color = (1, 1, 1, 1)
 				if i in self.selectedMarkers:
-					color = (0.2, 0.2, 0.8, 1)
+					color = (1.0, 0.2, 0.8, 1)
 				
 				colorBuffer.append(color[0])
 				colorBuffer.append(color[1])
@@ -410,14 +415,30 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		GL.glUseProgram(0)
 		
 		
+	def keyPressEvent(self, event):
+		if event.key() == QtCore.Qt.Key_Control:
+			self.ctrlPressed = True
+		if event.key() == QtCore.Qt.Key_Shift:
+			self.shiftPressed = True
+			
+			
+	def keyReleaseEvent(self, event):
+		if event.key() == QtCore.Qt.Key_Control:
+			self.ctrlPressed = False
+		if event.key() == QtCore.Qt.Key_Shift:
+			self.shiftPressed = False
+		
+		
 	def mousePressEvent(self, event):
 		self.lastPos = event.pos()
 		self.mouseMoved = False
 		
 			
 	def mouseReleaseEvent(self, event):
+		if self.shiftPressed and self.mouseMoved and event.button() == QtCore.Qt.LeftButton:
+			self.mousePickRect(self.lastPos, event.pos(), self.ctrlPressed)
 		if not self.mouseMoved and event.button() == QtCore.Qt.LeftButton:
-			self.mousePick(event.pos())			
+			self.mousePick(event.pos(), self.ctrlPressed)			
 		elif not self.mouseMoved and event.button() == QtCore.Qt.MiddleButton:
 			self.screen.data.togglePaused()
 			
@@ -427,29 +448,89 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		dy = event.y() - self.lastPos.y()
 		
 		self.mouseMoved = True
-
-		if event.buttons() & QtCore.Qt.LeftButton and not self.autoCam:
+			
+		if event.buttons() & QtCore.Qt.LeftButton and not self.autoCam and not self.shiftPressed:
 			self.yRot += dy
 			self.zRot += dx
 			self.camera.setRotY(self.yRot / 16)
 			self.camera.setRotZ(self.zRot / 16)
-		elif event.buttons() & QtCore.Qt.MiddleButton and not self.autoCam:
+		elif event.buttons() & QtCore.Qt.MiddleButton and not self.autoCam and not self.shiftPressed:
 			self.xTrans += dx
 			self.yTrans += dy
 			self.camera.setTransX(self.xTrans * 0.01)
 			self.camera.setTransY(self.yTrans * 0.01)
-		elif event.buttons() & QtCore.Qt.RightButton and not self.autoCam:
+		elif event.buttons() & QtCore.Qt.RightButton and not self.autoCam and not self.shiftPressed:
 			self.zTrans -= dy
 			self.camera.setTransZ(self.zTrans * 0.01)
 
-		self.lastPos = event.pos()
+		if not self.shiftPressed:
+			self.lastPos = event.pos()
 		
 		
 	def wheelEvent(self, event):
 		self.screen.data.offsetCurrentFrame(numpy.sign(event.delta()) * int(self.screen.parameterDialog.getScrollSpeed()))
 		
 		
-	def mousePick(self, pos):
+	def mousePickRect(self, pos1, pos2, append):
+		if self.frameData:
+			rect = [numpy.min([pos1.x(), pos2.x()]), numpy.min([pos1.y(), pos2.y()]), numpy.max([pos1.x(), pos2.x()]), numpy.max([pos1.y(), pos2.y()])]
+			
+			tv = math.tan(self.camera.toRadian(self.screen.parameterDialog.getVerticalFOV()) * 0.5)
+			th = math.tan(self.camera.toRadian(self.screen.parameterDialog.getHorizontalFOV()) * 0.5)
+			viewport_width = self.width()
+			viewport_height = viewport_width * (tv / th)
+			
+			pTopLeft = [(rect[0] - viewport_width * 0.5) / (viewport_width * 0.5), -(rect[1] - self.height() * 0.5) / (viewport_height * 0.5)]
+			pTopRight = [(rect[2] - viewport_width * 0.5) / (viewport_width * 0.5), -(rect[1] - self.height() * 0.5) / (viewport_height * 0.5)]
+			pBottomLeft = [(rect[0] - viewport_width * 0.5) / (viewport_width * 0.5), -(rect[3] - self.height() * 0.5) / (viewport_height * 0.5)]
+			pBottomRight = [(rect[2] - viewport_width * 0.5) / (viewport_width * 0.5), -(rect[3] - self.height() * 0.5) / (viewport_height * 0.5)]
+			
+			rayTopLeft1 = self.camera.inverseProj(pTopLeft[0], pTopLeft[1], -1.0)
+			rayTopLeft2 = self.camera.inverseProj(pTopLeft[0], pTopLeft[1], 1.0)
+			rayTopRight1 = self.camera.inverseProj(pTopRight[0], pTopRight[1], -1.0)
+			rayTopRight2 = self.camera.inverseProj(pTopRight[0], pTopRight[1], 1.0)
+			rayBottomLeft1 = self.camera.inverseProj(pBottomLeft[0], pBottomLeft[1], -1.0)
+			rayBottomLeft2 = self.camera.inverseProj(pBottomLeft[0], pBottomLeft[1], 1.0)
+			rayBottomRight1 = self.camera.inverseProj(pBottomRight[0], pBottomRight[1], -1.0)
+			rayBottomRight2 = self.camera.inverseProj(pBottomRight[0], pBottomRight[1], 1.0)
+			
+			# self.testVertexBuffer = []
+			# self.testColorBuffer = []
+			
+			# self.testVertexBuffer.append(rayTopLeft1)
+			# self.testVertexBuffer.append(rayTopLeft2)
+			# self.testVertexBuffer.append(rayTopRight1)
+			# self.testVertexBuffer.append(rayTopRight2)
+			# self.testVertexBuffer.append(rayBottomLeft1)
+			# self.testVertexBuffer.append(rayBottomLeft2)
+			# self.testVertexBuffer.append(rayBottomRight1)
+			# self.testVertexBuffer.append(rayBottomRight2)
+			
+			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
+			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
+			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
+			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
+			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
+			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
+			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
+			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
+			
+			if not append:
+				self.selectedMarkers.clear()
+			max = self.screen.data.getMaxDataValue()
+			for i in range(self.frameData.GetItemNumber()):
+				pt = self.frameData.GetItem(i)
+				v = [pt.GetValue(self.currentFrame, 0) / max, pt.GetValue(self.currentFrame, 2) / max, -pt.GetValue(self.currentFrame, 1) / max]
+				vProj = self.camera.multiplyMatByVec(self.camera.mvp, v)
+				vProj = [vProj[0] / vProj[3], vProj[1] / vProj[3], vProj[2] / vProj[3]]
+				if vProj[0] > pTopLeft[0] and vProj[0] < pTopRight[0] and vProj[1] < pTopLeft[1] and vProj[1] > pBottomLeft[1]:
+					if i in self.selectedMarkers:
+						self.selectedMarkers.remove(i)
+					else:
+						self.selectedMarkers.add(i)
+		
+		
+	def mousePick(self, pos, append):
 		if self.frameData:
 			x = pos.x()
 			y = pos.y()
@@ -461,16 +542,16 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			x = (x - viewport_width * 0.5) / (viewport_width * 0.5)
 			y = -(y - self.height() * 0.5) / (viewport_height * 0.5)
 			l1 = self.camera.inverseProj(x, y, -1.0)
-			l2 = self.camera.inverseProj(x, y, 1.0)
-			# l2 = self.camera.camPos
+			l2 = self.camera.inverseProj(x, y, 1.0)		
 			
-			self.testVertexBuffer.append(l1)
-			self.testVertexBuffer.append(l2)
+			# self.testVertexBuffer = []
+			# self.testColorBuffer = []
 			
-			for i in range(4):
-				self.testColorBuffer.append([0.2, 0.8, 0.8, 1.0])
-			for i in range(4):
-				self.testColorBuffer.append([0.8, 0.2, 0.8, 1.0])
+			# self.testVertexBuffer.append(l1)
+			# self.testVertexBuffer.append(l2)
+			
+			# self.testColorBuffer.append([0.2, 0.8, 0.8, 1.0])
+			# self.testColorBuffer.append([0.8, 0.2, 0.8, 1.0])
 
 			bestPick = [10000, -1, 10000]
 			max = self.screen.data.getMaxDataValue()
@@ -482,15 +563,26 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 				length = self.camera.dot(vecLine, vecPoint) / math.sqrt(self.camera.length2(vecLine))
 				uVecLine = self.camera.normalizeVec(vecLine)
 				vecClosest = [l1[0] + uVecLine[0] * length, l1[1] + uVecLine[1] * length, l1[2] + uVecLine[2] * length]
-				dist = self.camera.length2([vecPoint[0] - vecClosest[0], vecPoint[0] - vecClosest[0], vecPoint[0] - vecClosest[0]])
-				cameraDist = self.camera.length2([v[0] - self.camera.camPos[0], v[1] - self.camera.camPos[1], v[1] - self.camera.camPos[1]])
-				if dist < bestPick[0]:
+				dist = math.sqrt(self.camera.length2([v[0] - vecClosest[0], v[1] - vecClosest[1], v[2] - vecClosest[2]]))
+				
+				cameraDist = math.sqrt(self.camera.length2([uVecLine[0] * length, uVecLine[1] * length, uVecLine[2] * length]))
+				if dist < 0.01 and cameraDist < bestPick[2]:
 					bestPick[0] = dist
 					bestPick[1] = i
 					bestPick[2] = cameraDist
-			print bestPick
-			self.selectedMarkers.clear()
-			self.selectedMarkers.add(bestPick[1])
+					
+					# self.testVertexBuffer.append(v)
+					# self.testVertexBuffer.append(vecClosest)
+					# self.testColorBuffer.append([1.0, 0.0, 0.0, 1.0])
+					# self.testColorBuffer.append([1.0, 1.0, 0.0, 1.0])
+			
+			if not append:
+				self.selectedMarkers.clear()
+			if bestPick[1] != -1:
+				if bestPick[1] in self.selectedMarkers:
+					self.selectedMarkers.remove(bestPick[1])
+				else:
+					self.selectedMarkers.add(bestPick[1])
 		
 		
 	def updateTimer(self):
