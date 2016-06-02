@@ -3,6 +3,7 @@ from PyQt4 import QtCore, QtGui
 from GLRenderArea import GLRenderArea
 from Parameter import Parameter
 from TimerBar import TimerBar
+from ItemList import ItemList
 
 
 class ScreenManager():
@@ -10,7 +11,11 @@ class ScreenManager():
 
 	def __init__(self, data):
 		self.screenList = []
-		self.screenList.append(Screen(data, True))
+		screen = Screen(data, True)
+		data.dataLoaded.connect(screen.dataLoaded)
+		data.dataPauseToggled.connect(screen.dataPauseToggled)
+		data.dataFrameUpdated.connect(screen.dataFrameUpdated)
+		self.screenList.append(screen)
 
 
 class Screen(QtGui.QMainWindow):
@@ -32,11 +37,6 @@ class Screen(QtGui.QMainWindow):
 			# print 'new sub window'
 		
 		self.initUI()
-		
-		self.timer = QtCore.QTimer(self)
-		self.timer.setInterval(10)
-		self.timer.timeout.connect(self.updateTimer)
-		self.timer.start()
 
 		
 	def initUI(self):		
@@ -67,9 +67,16 @@ class Screen(QtGui.QMainWindow):
 		
 		self.timerBar = TimerBar(self)
 		
-		self.centralLayout = QtGui.QVBoxLayout()
-		self.centralLayout.addWidget(self.centralTab)
-		self.centralLayout.addWidget(self.timerBar)
+		self.leftLayout = QtGui.QVBoxLayout()
+		self.leftLayout.addWidget(self.centralTab)
+		self.leftLayout.addWidget(self.timerBar)
+		
+		self.itemList = ItemList(self)
+		self.itemList.itemListPick.connect(self.glRenderArea.itemListPick)
+		
+		self.centralLayout = QtGui.QHBoxLayout()
+		self.centralLayout.addLayout(self.leftLayout)
+		self.centralLayout.addWidget(self.itemList)
 		
 		self.centralWidget = QtGui.QWidget()
 		self.centralWidget.setLayout(self.centralLayout)
@@ -104,8 +111,17 @@ class Screen(QtGui.QMainWindow):
 			event.ignore()
 			
 			
-	def updateTimer(self):
-		if self.data.acq:
-			self.timerBar.setPauseButtonChecked(self.data.paused)
-			self.timerBar.setMaximum(self.data.totalFrame)
-			self.timerBar.setValue(self.data.currentFrame)
+	def dataLoaded(self):
+		self.timerBar.setPauseButtonChecked(self.data.paused)
+		self.timerBar.setMaximum(self.data.totalFrame)
+		self.timerBar.setValue(self.data.currentFrame)
+		
+		self.itemList.setItemData(self.data)
+		
+		
+	def dataPauseToggled(self):
+		self.timerBar.setPauseButtonChecked(self.data.paused)
+		
+		
+	def dataFrameUpdated(self):
+		self.timerBar.setValue(self.data.currentFrame)

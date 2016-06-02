@@ -528,6 +528,12 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 						self.selectedMarkers.remove(i)
 					else:
 						self.selectedMarkers.add(i)
+						
+			self.screen.itemList.clearSelection()
+			for markerIndex in self.selectedMarkers:
+				modelIndex = self.screen.itemList.model().index(markerIndex, 0, parent=self.screen.itemList.getRootMarkerIndex())
+				item = self.screen.itemList.itemFromIndex(modelIndex)
+				self.screen.itemList.setItemSelected(item, True)
 		
 		
 	def mousePick(self, pos, append):
@@ -583,6 +589,19 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 					self.selectedMarkers.remove(bestPick[1])
 				else:
 					self.selectedMarkers.add(bestPick[1])
+					
+			self.screen.itemList.clearSelection()
+			for markerIndex in self.selectedMarkers:
+				modelIndex = self.screen.itemList.model().index(markerIndex, 0, parent=self.screen.itemList.getRootMarkerIndex())
+				item = self.screen.itemList.itemFromIndex(modelIndex)
+				self.screen.itemList.setItemSelected(item, True)
+					
+					
+	def itemListPick(self):
+		self.selectedMarkers.clear()
+		for item in self.screen.itemList.selectedItems():
+			markerIndex = self.screen.itemList.indexFromItem(item).row()
+			self.selectedMarkers.add(markerIndex)
 		
 		
 	def updateTimer(self):

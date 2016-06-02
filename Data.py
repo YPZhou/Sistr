@@ -7,10 +7,17 @@ from PyQt4 import QtCore
 from Screen import Screen
 
 
-class Data():
+class Data(QtCore.QObject):
 
+	
+	dataLoaded = QtCore.pyqtSignal()
+	dataPauseToggled = QtCore.pyqtSignal()
+	dataFrameUpdated = QtCore.pyqtSignal()
+	
 
-	def __init__(self):	
+	def __init__(self):
+		super(QtCore.QObject, self).__init__()
+		
 		self.acq = None
 		self.dataPath = '.'
 		self.dataFile = ''
@@ -78,10 +85,13 @@ class Data():
 			self.timer.setInterval(int(1000 / self.frequency))
 			self.timer.start()
 			
+			self.dataLoaded.emit()
+			
 	
 	def togglePaused(self):
 		if self.acq:
 			self.paused = not self.paused
+			self.dataPauseToggled.emit()
 	
 	
 	def offsetCurrentFrame(self, offset):
@@ -150,3 +160,4 @@ class Data():
 			self.currentFrame += 1
 			if self.currentFrame >= self.totalFrame:
 				self.currentFrame = 0
+			self.dataFrameUpdated.emit()
