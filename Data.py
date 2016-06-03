@@ -22,6 +22,8 @@ class Data(QtCore.QObject):
 		self.dataPath = '.'
 		self.dataFile = ''
 		
+		self.group = []
+		
 		self.paused = False
 		self.currentFrame = 0
 		self.maxDataValue = 0
@@ -153,6 +155,11 @@ class Data(QtCore.QObject):
 		
 	def getMaxDataValue(self):
 		return self.maxDataValue
+		
+		
+	def createGroupFromSelection(self):
+		# need some spanning algo
+		pass
 	
 			
 	def updateTimer(self):

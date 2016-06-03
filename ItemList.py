@@ -83,9 +83,18 @@ class ItemList(QtGui.QTreeWidget):
 		self.rootMarker = QtGui.QTreeWidgetItem(self)
 		self.rootMarker.setText(0, 'Markers')
 		
+		self.rootGroup = QtGui.QTreeWidgetItem(self)
+		self.rootGroup.setText(0, 'Groups')
+		
 		
 	def getRootMarkerIndex(self):
 		return self.indexFromItem(self.rootMarker)
+		
+		
+	def clearPick(self):
+		self.clearSelection()
+		for i in range(self.rootMarker.childCount()):
+			self.rootMarker.child(i).setTextColor(0, QtGui.QColor(0, 0, 0, 255))
 		
 		
 	def setItemData(self, data):
@@ -93,6 +102,8 @@ class ItemList(QtGui.QTreeWidget):
 			self.clear()
 			self.rootMarker = QtGui.QTreeWidgetItem(self)
 			self.rootMarker.setText(0, 'Markers')
+			self.rootGroup = QtGui.QTreeWidgetItem(self)
+			self.rootGroup.setText(0, 'Groups')
 		
 		frameData = data.getCurrentFrameData()		
 		for i in range(frameData.GetItemNumber()):
@@ -119,20 +130,24 @@ class ItemList(QtGui.QTreeWidget):
 			self.setItemWidget(item, 5, colorBtn)
 			
 			
-		self.clearSelection()
+		self.clearPick()
 		self.itemListPick.emit()
 			
 			
 	def itemClickedHandler(self, item, column):
-		if item == self.rootMarker:
-			self.clearSelection()
+		if item == self.rootMarker or item == self.rootGroup:
+			self.clearPick()
+		if self.isItemSelected(item):
+			item.setTextColor(0, QtGui.QColor(0, 180, 50, 150))
+		else:
+			item.setTextColor(0, QtGui.QColor(0, 0, 0, 255))
 		self.itemListPick.emit()
 		
 		
 	def mousePressEvent(self, event):
 		item = self.itemAt(event.pos())
 		if not item:
-			self.clearSelection()
+			self.clearPick()			
 			self.itemListPick.emit()
 		QtGui.QTreeWidget.mousePressEvent(self, event)
 		

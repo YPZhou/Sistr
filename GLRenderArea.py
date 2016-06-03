@@ -100,6 +100,7 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		self.frameData = None
 		
 		self.selectedMarkers = set([])
+		self.selectedGroups = set([])
 		self.maskDraw = set([])
 		self.maskTraj = set([])
 		self.maskTag = set([])
@@ -510,10 +511,11 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 					else:
 						self.selectedMarkers.add(i)
 						
-			self.screen.itemList.clearSelection()
+			self.screen.itemList.clearPick()
 			for markerIndex in self.selectedMarkers:
 				modelIndex = self.screen.itemList.model().index(markerIndex, 0, parent=self.screen.itemList.getRootMarkerIndex())
 				item = self.screen.itemList.itemFromIndex(modelIndex)
+				item.setTextColor(0, QtGui.QColor(0, 180, 50, 150))
 				self.screen.itemList.setItemSelected(item, True)
 		
 		
@@ -571,10 +573,11 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 				else:
 					self.selectedMarkers.add(bestPick[1])
 					
-			self.screen.itemList.clearSelection()
+			self.screen.itemList.clearPick()
 			for markerIndex in self.selectedMarkers:
 				modelIndex = self.screen.itemList.model().index(markerIndex, 0, parent=self.screen.itemList.getRootMarkerIndex())
 				item = self.screen.itemList.itemFromIndex(modelIndex)
+				item.setTextColor(0, QtGui.QColor(0, 180, 50, 150))
 				self.screen.itemList.setItemSelected(item, True)
 					
 					

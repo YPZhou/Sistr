@@ -60,6 +60,15 @@ class Screen(QtGui.QMainWindow):
 			
 			viewmenu = self.menuBar().addMenu('View')
 			viewmenu.addAction(parameterAction)
+			
+			createGrpFromSelAction = QtGui.QAction('Create from selection', self)
+			createGrpFromSelAction.triggered.connect(self.createGroupFromSelection)
+			createGrpDialogAction = QtGui.QAction('Create...', self)
+			createGrpDialogAction.triggered.connect(self.showCreateGroupDialog)
+			
+			groupmenu = self.menuBar().addMenu('Group')
+			groupmenu.addAction(createGrpFromSelAction)
+			groupmenu.addAction(createGrpDialogAction)
 
 		self.glRenderArea = GLRenderArea(self)
 		self.centralTab = QtGui.QTabWidget()
@@ -96,6 +105,14 @@ class Screen(QtGui.QMainWindow):
 			
 	def showParameterDialog(self):
 		self.parameterDialog.show()
+			
+			
+	def showCreateGroupDialog(self):
+		pass
+		
+		
+	def createGroupFromSelection(self):
+		self.data.createGroupFromSelection()
 			
 			
 	def dragEnterEvent(self, event):
