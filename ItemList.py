@@ -63,6 +63,9 @@ class ItemList(QtGui.QTreeWidget):
 		super(ItemList, self).__init__(parent = screen)
 		self.screen = screen
 		self.itemClicked.connect(self.itemClickedHandler)
+		
+		self.setFocusPolicy(QtCore.Qt.NoFocus)
+		
 		self.initUI()
 		
 		

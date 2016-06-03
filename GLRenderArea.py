@@ -313,8 +313,7 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 							trajColorBuffer.append(color[2])
 							trajColorBuffer.append(color[3])
 							trajVertexCount[-1] += 1
-					
-					GL.glDisable(GL.GL_DEPTH_TEST)
+
 					if not i in self.maskTag:
 						GL.glColor4f(color[0], color[1], color[2], color[3])
 						GL.glLoadIdentity()
@@ -325,6 +324,7 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			GL.glPointSize(self.screen.parameterDialog.getPointSize())
 			GL.glLineWidth(self.screen.parameterDialog.getTrajectoryWidth())
 			
+			GL.glEnable(GL.GL_LINE_SMOOTH)
 			GL.glEnable(GL.GL_DEPTH_TEST)
 			self.openGLDraw(self.markerShader, GL.GL_POINTS, vertexBuffer, colorBuffer)
 			self.openGLDrawMultiArray(self.markerShader, GL.GL_LINE_STRIP, trajVertexBuffer, trajVertexStart, trajVertexCount, trajColorBuffer)
