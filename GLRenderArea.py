@@ -273,7 +273,7 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			
 			GL.glDisable(GL.GL_DEPTH_TEST)
 			
-			max = self.screen.data.getMaxDataValue()
+			maxVal = self.screen.data.getMaxDataValue()
 			for i in range(self.frameData.GetItemNumber()):
 				if not i in self.maskDraw:
 					pt = self.frameData.GetItem(i)
@@ -286,108 +286,48 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 					colorBuffer.append(color[0])
 					colorBuffer.append(color[1])
 					colorBuffer.append(color[2])
-					colorBuffer.append(color[3])
+					colorBuffer.append(color[3])					
 					
-					
-					x = pt.GetValue(self.currentFrame, 0) / max
-					z = -pt.GetValue(self.currentFrame, 1) / max
-					y = pt.GetValue(self.currentFrame, 2) / max
+					x = pt.GetValue(self.currentFrame, 0) / maxVal
+					z = -pt.GetValue(self.currentFrame, 1) / maxVal
+					y = pt.GetValue(self.currentFrame, 2) / maxVal
 					vertexBuffer.append(x)
 					vertexBuffer.append(y)
 					vertexBuffer.append(z)
-				
-				# print x, y, z
-				
-				# if not pt in self.screen.mask3D and not numpy.isnan(self.syncTimer.viconData.getValueGLRender(self.currentFrame, pt + ':X')):
-				# 	if pt in self.screen.colorDict:
-				# 		color = (self.screen.colorDict[pt].redF(), self.screen.colorDict[pt].greenF(), self.screen.colorDict[pt].blueF(), self.screen.colorDict[pt].alphaF())
-				# 	else:
-				# 		color = (1, 1, 1, 0.7)
-				# 	colorBuffer.append(color[0])
-				# 	colorBuffer.append(color[1])
-				# 	colorBuffer.append(color[2])
-				# 	colorBuffer.append(color[3])
+					
+					if not i in self.maskTraj and self.screen.parameterDialog.getTrajectoryLength() > 0:
+						lowBound = max(0, self.currentFrame - self.screen.parameterDialog.getTrajectoryLength())
+						highBound = min(self.screen.data.totalFrame - 1, self.currentFrame + self.screen.parameterDialog.getTrajectoryLength())
 						
-				# 	x, y, z = self.syncTimer.viconData.getValueGLRender(self.currentFrame, pt + ':Y'), self.syncTimer.viconData.getValueGLRender(self.currentFrame, pt + ':Z'), self.syncTimer.viconData.getValueGLRender(self.currentFrame, pt + ':X')
-				# 	vertexBuffer.append(x)
-				# 	vertexBuffer.append(y)
-				# 	vertexBuffer.append(z)
+						if len(trajVertexCount) != 0:
+							trajVertexStart.append(trajVertexStart[-1] + trajVertexCount[-1])
+						else:
+							trajVertexStart.append(0)
+						trajVertexCount.append(0)
+						for j in range(lowBound, highBound+1):
+							trajVertexBuffer.append(pt.GetValue(j, 0) / maxVal)
+							trajVertexBuffer.append(pt.GetValue(j, 2) / maxVal)
+							trajVertexBuffer.append(-pt.GetValue(j, 1) / maxVal)
+							trajColorBuffer.append(color[0])
+							trajColorBuffer.append(color[1])
+							trajColorBuffer.append(color[2])
+							trajColorBuffer.append(color[3])
+							trajVertexCount[-1] += 1
 					
-					# if not pt in self.screen.maskTraj and self.parameterDialog.getTrajectoryWidth() > 0:
-					# 	trajX = self.syncTimer.viconData.getTrajectory(self.currentFrame, pt + ':Y', self.parameterDialog.getTrajectoryLength())
-					# 	trajY = self.syncTimer.viconData.getTrajectory(self.currentFrame, pt + ':Z', self.parameterDialog.getTrajectoryLength())
-					# 	trajZ = self.syncTimer.viconData.getTrajectory(self.currentFrame, pt + ':X', self.parameterDialog.getTrajectoryLength())
-					# 	if len(trajVertexCount) != 0:
-					# 		trajVertexStart.append(trajVertexStart[-1] + trajVertexCount[-1])
-					# 	else:
-					# 		trajVertexStart.append(0)
-					# 	trajVertexCount.append(0)
-					# 	for i in range(0, len(trajX)):
-					# 		if not numpy.isnan(trajX[i]):
-					# 			trajVertexBuffer.append(trajX[i])
-					# 			trajVertexBuffer.append(trajY[i])
-					# 			trajVertexBuffer.append(trajZ[i])
-					# 			trajColorBuffer.append(color[0])
-					# 			trajColorBuffer.append(color[1])
-					# 			trajColorBuffer.append(color[2])
-					# 			trajColorBuffer.append(color[3])
-					# 			trajVertexCount[-1] += 1
-					
-					# if not pt in self.screen.maskTag:
-					# 	GL.glLoadIdentity()
-					# 	GL.glLoadMatrixf(self.camera.transpose(self.camera.getMVP()))						
-					# 	self.renderText(x, y, z, pt, QtGui.QFont('Arial', 12, QtGui.QFont.Bold, False))
-					# 	GL.glLoadIdentity()
-			
-			# vertexBuffer = numpy.array(vertexBuffer, numpy.float32)
-			# colorBuffer = numpy.array(colorBuffer, numpy.float32)
+					GL.glDisable(GL.GL_DEPTH_TEST)
+					if not i in self.maskTag:
+						GL.glColor4f(color[0], color[1], color[2], color[3])
+						GL.glLoadIdentity()
+						GL.glLoadMatrixf(self.camera.transpose(self.camera.getMVP()))						
+						self.renderText(x, y, z, pt.GetLabel(), QtGui.QFont('Arial', 10, QtGui.QFont.Bold, False))
+						GL.glLoadIdentity()
 					
 			GL.glPointSize(self.screen.parameterDialog.getPointSize())
-			# GL.glLineWidth(self.parameterDialog.getTrajectoryWidth())
+			GL.glLineWidth(self.screen.parameterDialog.getTrajectoryWidth())
 			
 			GL.glEnable(GL.GL_DEPTH_TEST)
 			self.openGLDraw(self.markerShader, GL.GL_POINTS, vertexBuffer, colorBuffer)
-			# GL.glUseProgram(self.shader)
-			# mvpID = GL.glGetUniformLocation(self.shader, 'mvp')
-			# GL.glUniformMatrix4fv(mvpID, 1, GL.GL_TRUE, self.camera.getMVP())
-			
-			# posID = GL.glGetAttribLocation(self.shader, 'pos')
-			# colorID = GL.glGetAttribLocation(self.shader, 'vertex_color')
-			# GL.glEnableVertexAttribArray(posID)
-			# GL.glEnableVertexAttribArray(colorID)
-			# GL.glVertexAttribPointer(posID,
-			# 						 3,
-			# 						 GL.GL_FLOAT,
-			# 						 GL.GL_FALSE,
-			# 						 0,
-			# 						 vertexBuffer)
-			# GL.glVertexAttribPointer(colorID,
-			# 						 4,
-			# 						 GL.GL_FLOAT,
-			# 						 GL.GL_FALSE,
-			# 						 0,
-			# 						 colorBuffer)				
-			# GL.glDrawArrays(GL.GL_POINTS, 0, len(vertexBuffer) / 3)
-		
-			# trajVertexBuffer = numpy.array(trajVertexBuffer, numpy.float32)
-			# trajColorBuffer = numpy.array(trajColorBuffer, numpy.float32)
-			# GL.glVertexAttribPointer(posID,
-			# 						 3,
-			# 						 GL.GL_FLOAT,
-			# 						 GL.GL_FALSE,
-			# 						 0,
-			# 						 trajVertexBuffer)
-			# GL.glVertexAttribPointer(colorID,
-			# 						 4,
-			# 						 GL.GL_FLOAT,
-			# 						 GL.GL_FALSE,
-			# 						 0,
-			# 						 trajColorBuffer)									 
-			# GL.glMultiDrawArrays(GL.GL_LINE_STRIP, numpy.array(trajVertexStart, numpy.intc), numpy.array(trajVertexCount, numpy.intc), len(trajVertexCount))
-			
-			# GL.glDisableVertexAttribArray(posID)
-			# GL.glDisableVertexAttribArray(colorID)
-			# GL.glUseProgram(0)
+			self.openGLDrawMultiArray(self.markerShader, GL.GL_LINE_STRIP, trajVertexBuffer, trajVertexStart, trajVertexCount, trajColorBuffer)
 			
 			
 	def openGLDraw(self, shader, primitive, vertex, color):
@@ -416,6 +356,40 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 								 0,
 								 colorBuffer)				
 		GL.glDrawArrays(primitive, 0, len(vertexBuffer))
+		
+		GL.glDisableVertexAttribArray(posID)
+		GL.glDisableVertexAttribArray(colorID)
+		GL.glUseProgram(0)
+		
+		
+	def openGLDrawMultiArray(self, shader, primitive, vertex, start, count, color):
+		vertexBuffer = numpy.array(vertex, numpy.float32)
+		colorBuffer = numpy.array(color, numpy.float32)
+		startBuffer = numpy.array(start, numpy.intc)
+		countBuffer = numpy.array(count, numpy.intc)
+		
+		GL.glUseProgram(shader)
+		mvpID = GL.glGetUniformLocation(shader, 'mvp')
+		GL.glUniformMatrix4fv(mvpID, 1, GL.GL_TRUE, self.camera.getMVP())
+		
+		posID = GL.glGetAttribLocation(shader, 'pos')
+		colorID = GL.glGetAttribLocation(shader, 'vertex_color')
+		GL.glEnableVertexAttribArray(posID)
+		GL.glEnableVertexAttribArray(colorID)
+		
+		GL.glVertexAttribPointer(posID,
+								 3,
+								 GL.GL_FLOAT,
+								 GL.GL_FALSE,
+								 0,
+								 vertexBuffer)
+		GL.glVertexAttribPointer(colorID,
+								 4,
+								 GL.GL_FLOAT,
+								 GL.GL_FALSE,
+								 0,
+								 colorBuffer)				
+		GL.glMultiDrawArrays(primitive, startBuffer, countBuffer, len(count))
 		
 		GL.glDisableVertexAttribArray(posID)
 		GL.glDisableVertexAttribArray(colorID)
@@ -631,16 +605,16 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 				elif item[2] == 0:
 					self.maskDraw.add(index)				
 			elif configType == 'traj':
-				if item[2] == 0:
+				if item[2] == 2:
 					if index in self.maskTraj:
 						self.maskTraj.remove(index)
-				elif item[2] == 2:
+				elif item[2] == 0:
 					self.maskTraj.add(index)
 			elif configType == 'tag':
-				if item[2] == 0:
+				if item[2] == 2:
 					if index in self.maskTag:
 						self.maskTag.remove(index)
-				elif item[2] == 2:
+				elif item[2] == 0:
 					self.maskTag.add(index)
 			elif configType == 'color':
 				self.colorDict[index] = item[2]

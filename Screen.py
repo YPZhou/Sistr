@@ -42,6 +42,7 @@ class Screen(QtGui.QMainWindow):
 	def initUI(self):		
 		if self.mainWindow:
 			self.setAcceptDrops(True)
+			self.setWindowTitle('Sistre')
 		
 			openAction = QtGui.QAction('Open', self)
 			openAction.triggered.connect(self.showFileDialog)
@@ -114,6 +115,8 @@ class Screen(QtGui.QMainWindow):
 			
 			
 	def dataLoaded(self):
+		self.setWindowTitle(self.data.dataPath + self.data.dataFile + ' - Sistre')
+	
 		self.glRenderArea.clearItemConfig()
 	
 		self.timerBar.setPauseButtonChecked(self.data.paused)

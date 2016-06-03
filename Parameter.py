@@ -171,6 +171,7 @@ class Parameter(QtGui.QDialog):
 	def getGridVisibility(self):
 		return self.gridVisibilityCheckBox.checkState() == 2
 	
+	
 	def getAxisWidth(self):
 		try:
 			return float(self.axisWidthLineEdit.text())
@@ -180,6 +181,7 @@ class Parameter(QtGui.QDialog):
 	
 	def getAxisVisibility(self):
 		return self.axisVisibilityCheckBox.checkState() == 2
+	
 	
 	def getTrajectoryWidth(self):
 		try:

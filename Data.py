@@ -37,7 +37,7 @@ class Data(QtCore.QObject):
 			self.timer.stop()
 			return
 		
-		self.dataPath, self.dataFile = ntpath.split(path)
+		self.dataPath, self.dataFile = ntpath.split(ntpath.abspath(path))
 		
 		# print self.dataPath
 		# print self.dataFile
@@ -69,7 +69,7 @@ class Data(QtCore.QObject):
 			for i in range(self.totalPoint):
 				point = self.acq.GetPoint(i)
 				for j in range(self.totalFrame):
-					pos = point.GetValues()[i,:]
+					pos = point.GetValues()[j,:]
 					# print pos
 					if pos[0] > self.maxDataValue:
 						self.maxDataValue = pos[0]
@@ -148,7 +148,7 @@ class Data(QtCore.QObject):
 	def getCurrentFrameData(self):
 		if self.acq:				
 			return self.acq.GetPoints()
-		return None
+		return None		
 		
 		
 	def getMaxDataValue(self):
