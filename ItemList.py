@@ -1,31 +1,68 @@
 from PyQt4 import QtCore, QtGui
 
 
-class GridCheckBox(QtGui.QCheckBox):
+class ListCheckBox(QtGui.QCheckBox):
 
 
-	def __init__(self, screen):
-		pass
+	listChkBoxStateChanged = QtCore.pyqtSignal(object)
+
+
+	def __init__(self, modelIndex, chkBoxType):
+		super(ListCheckBox, self).__init__()
+		self.modelIndex = modelIndex
+		self.chkBoxType = chkBoxType
+		self.stateChanged.connect(self.chkBoxStateChanged)
+		
+		
+	def chkBoxStateChanged(self, state):
+		self.listChkBoxStateChanged.emit([self.modelIndex, self.chkBoxType, state])
 
 
 class ColorButton(QtGui.QPushButton):
 
 
-	def __init__(self, screen):
-		pass
+	colorChanged = QtCore.pyqtSignal(object)
+
+
+	def __init__(self, modelIndex, color = None):
+		super(ColorButton, self).__init__()
+		self.modelIndex = modelIndex
+		self.color = color
+		if self.color:
+			self.setColor(self.color)
+		self.pressed.connect(self.colorDialog)
+		
+		
+	def setColor(self, color):
+		if color != self.color:
+			self.color = color
+			self.colorChanged.emit([self.modelIndex, 'color', self.color])
+			
+		if self.color:
+			self.setStyleSheet('background-color: %s;' % self.color.name())
+		else:
+			self.setStyleSheet('')
+			
+			
+	def colorDialog(self):
+		dlg = QtGui.QColorDialog()
+		if self.color:
+			dlg.setCurrentColor(QtGui.QColor(self.color))
+		if dlg.exec_():
+			self.setColor(dlg.currentColor())
 
 
 class ItemList(QtGui.QTreeWidget):
 
 
 	itemListPick = QtCore.pyqtSignal()
+	itemConfigChanged = QtCore.pyqtSignal(object)
 
 
 	def __init__(self, screen):
 		super(ItemList, self).__init__(parent = screen)
 		self.screen = screen
 		self.itemClicked.connect(self.itemClickedHandler)
-		# self.itemPressed.connect(self.itemPressedHandler)
 		self.initUI()
 		
 		
@@ -60,6 +97,24 @@ class ItemList(QtGui.QTreeWidget):
 			name = pt.GetLabel()
 			item = QtGui.QTreeWidgetItem(self.rootMarker)
 			item.setText(0, name)
+			index = self.indexFromItem(item)
+			maskDrawChkBox = ListCheckBox(index, 'draw')
+			maskDrawChkBox.setCheckState(QtCore.Qt.Checked)
+			maskGraphChkBox = ListCheckBox(index, 'graph')
+			maskTrajChkBox = ListCheckBox(index, 'traj')
+			maskTagChkBox = ListCheckBox(index, 'tag')
+			colorBtn = ColorButton(index)
+			maskDrawChkBox.listChkBoxStateChanged.connect(self.itemListStateChanged)
+			maskGraphChkBox.listChkBoxStateChanged.connect(self.itemListStateChanged)
+			maskTrajChkBox.listChkBoxStateChanged.connect(self.itemListStateChanged)
+			maskTagChkBox.listChkBoxStateChanged.connect(self.itemListStateChanged)
+			colorBtn.colorChanged.connect(self.itemListStateChanged)
+			self.setItemWidget(item, 1, maskDrawChkBox)
+			self.setItemWidget(item, 2, maskGraphChkBox)
+			self.setItemWidget(item, 3, maskTrajChkBox)
+			self.setItemWidget(item, 4, maskTagChkBox)
+			self.setItemWidget(item, 5, colorBtn)
+			
 			
 		self.clearSelection()
 		self.itemListPick.emit()
@@ -67,7 +122,6 @@ class ItemList(QtGui.QTreeWidget):
 			
 	def itemClickedHandler(self, item, column):
 		if item == self.rootMarker:
-			# self.setItemSelected(item, False)
 			self.clearSelection()
 		self.itemListPick.emit()
 		
@@ -78,3 +132,7 @@ class ItemList(QtGui.QTreeWidget):
 			self.clearSelection()
 			self.itemListPick.emit()
 		QtGui.QTreeWidget.mousePressEvent(self, event)
+		
+		
+	def itemListStateChanged(self, item):
+		self.itemConfigChanged.emit(item)

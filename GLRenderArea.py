@@ -100,6 +100,10 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		self.frameData = None
 		
 		self.selectedMarkers = set([])
+		self.maskDraw = set([])
+		self.maskTraj = set([])
+		self.maskTag = set([])
+		self.colorDict = {}
 		
 		self.timer = QtCore.QTimer(self)
 		self.timer.setInterval(10)
@@ -271,23 +275,26 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			
 			max = self.screen.data.getMaxDataValue()
 			for i in range(self.frameData.GetItemNumber()):
-				pt = self.frameData.GetItem(i)
-				color = (1, 1, 1, 1)
-				if i in self.selectedMarkers:
-					color = (1.0, 0.2, 0.8, 1)
-				
-				colorBuffer.append(color[0])
-				colorBuffer.append(color[1])
-				colorBuffer.append(color[2])
-				colorBuffer.append(color[3])
-				
-				
-				x = pt.GetValue(self.currentFrame, 0) / max
-				z = -pt.GetValue(self.currentFrame, 1) / max
-				y = pt.GetValue(self.currentFrame, 2) / max
-				vertexBuffer.append(x)
-				vertexBuffer.append(y)
-				vertexBuffer.append(z)
+				if not i in self.maskDraw:
+					pt = self.frameData.GetItem(i)
+					color = (1, 1, 1, 1)
+					if i in self.colorDict:
+						color = (self.colorDict[i].redF(), self.colorDict[i].greenF(), self.colorDict[i].blueF(), self.colorDict[i].alphaF())
+					if i in self.selectedMarkers:
+						color = (1.0, 0.2, 0.8, 1)
+					
+					colorBuffer.append(color[0])
+					colorBuffer.append(color[1])
+					colorBuffer.append(color[2])
+					colorBuffer.append(color[3])
+					
+					
+					x = pt.GetValue(self.currentFrame, 0) / max
+					z = -pt.GetValue(self.currentFrame, 1) / max
+					y = pt.GetValue(self.currentFrame, 2) / max
+					vertexBuffer.append(x)
+					vertexBuffer.append(y)
+					vertexBuffer.append(z)
 				
 				# print x, y, z
 				
@@ -602,6 +609,41 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		for item in self.screen.itemList.selectedItems():
 			markerIndex = self.screen.itemList.indexFromItem(item).row()
 			self.selectedMarkers.add(markerIndex)
+			
+			
+	def clearItemConfig(self):
+		self.maskDraw.clear()
+		for i in range(self.screen.data.totalPoint):
+			self.maskTraj.add(i)
+			self.maskTag.add(i)
+		self.colorDict.clear()
+			
+			
+	def itemConfigChanged(self, item):
+		index = item[0].row()
+		parentIndex = item[0].parent().row()
+		configType = item[1]
+		if parentIndex == 0:
+			if configType == 'draw':
+				if item[2] == 2:
+					if index in self.maskDraw:
+						self.maskDraw.remove(index)
+				elif item[2] == 0:
+					self.maskDraw.add(index)				
+			elif configType == 'traj':
+				if item[2] == 0:
+					if index in self.maskTraj:
+						self.maskTraj.remove(index)
+				elif item[2] == 2:
+					self.maskTraj.add(index)
+			elif configType == 'tag':
+				if item[2] == 0:
+					if index in self.maskTag:
+						self.maskTag.remove(index)
+				elif item[2] == 2:
+					self.maskTag.add(index)
+			elif configType == 'color':
+				self.colorDict[index] = item[2]
 		
 		
 	def updateTimer(self):

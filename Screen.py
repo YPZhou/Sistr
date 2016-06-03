@@ -73,6 +73,8 @@ class Screen(QtGui.QMainWindow):
 		
 		self.itemList = ItemList(self)
 		self.itemList.itemListPick.connect(self.glRenderArea.itemListPick)
+		self.itemList.itemConfigChanged.connect(self.glRenderArea.itemConfigChanged)
+		# self.itemList.itemConfigChanged.connect(self.graphRenderArea.itemConfigChanged)
 		
 		self.centralLayout = QtGui.QHBoxLayout()
 		self.centralLayout.addLayout(self.leftLayout)
@@ -112,6 +114,8 @@ class Screen(QtGui.QMainWindow):
 			
 			
 	def dataLoaded(self):
+		self.glRenderArea.clearItemConfig()
+	
 		self.timerBar.setPauseButtonChecked(self.data.paused)
 		self.timerBar.setMaximum(self.data.totalFrame)
 		self.timerBar.setValue(self.data.currentFrame)
