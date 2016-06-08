@@ -76,8 +76,10 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		
 		self.lastPos = QtCore.QPoint()
 		self.mouseMoved = False
+		self.mousePickRectStart = False
 		self.ctrlPressed = False
 		self.shiftPressed = False
+		self.mouseRect = []
 		
 		self.autoCam = False
 		self.ortho = False
@@ -98,6 +100,8 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		
 		self.currentFrame = 0
 		self.frameData = None
+		
+		self.groups = []
 		
 		self.selectedMarkers = set([])
 		self.selectedGroups = set([])
@@ -120,6 +124,11 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		
 	def minimumSizeHint(self):
 		return QtCore.QSize(800, 600)
+		
+		
+	def addGroup(self, newGroup):
+		if len(newGroup) > 0:
+			self.groups.append(newGroup)
 		
 
 	def paintEvent(self, event):	
@@ -161,9 +170,9 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		
 		self.updateCamera()				
 		self.drawCoords()
-		# self.drawSegments()
 		# self.drawCones()
 		self.drawMarkers()
+		self.drawGroups()
 		
 		GL.glDisable(GL.GL_CULL_FACE)
 		GL.glDisable(GL.GL_DEPTH_TEST)
@@ -172,6 +181,14 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 		self.openGLDraw(self.shader, GL.GL_LINES, self.testVertexBuffer, self.testColorBuffer)
 		
 		painter = QtGui.QPainter(self)
+		if len(self.mouseRect) > 0:
+			painter.setPen(QtGui.QColor(0, 200, 50, 100))
+			left = min(self.mouseRect[0].x(), self.mouseRect[1].x())
+			top = min(self.mouseRect[0].y(), self.mouseRect[1].y())
+			width = max(self.mouseRect[0].x(), self.mouseRect[1].x()) - left
+			height = max(self.mouseRect[0].y(), self.mouseRect[1].y()) - top
+			rect = QtCore.QRect(left, top, width, height)
+			painter.drawRect(rect)
 		painter.end()
 		
 		
@@ -331,6 +348,58 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			self.openGLDrawMultiArray(self.markerShader, GL.GL_LINE_STRIP, trajVertexBuffer, trajVertexStart, trajVertexCount, trajColorBuffer)
 			
 			
+	def drawGroups(self):
+		if self.frameData and self.screen.parameterDialog.getGroupLinkWidth() > 0:
+			vertexBuffer = []
+			vertexStart = []
+			vertexCount = []
+			colorBuffer = []
+			
+			maxVal = self.screen.data.getMaxDataValue()
+			for group in self.groups:
+				for link in group:
+					pt1 = self.frameData.GetItem(link[0])
+					color1 = (1, 1, 1, 1)
+					
+					colorBuffer.append(color1[0])
+					colorBuffer.append(color1[1])
+					colorBuffer.append(color1[2])
+					colorBuffer.append(color1[3])					
+					
+					x1 = pt1.GetValue(self.currentFrame, 0) / maxVal
+					z1 = -pt1.GetValue(self.currentFrame, 1) / maxVal
+					y1 = pt1.GetValue(self.currentFrame, 2) / maxVal
+					vertexBuffer.append(x1)
+					vertexBuffer.append(y1)
+					vertexBuffer.append(z1)
+					
+					pt2 = self.frameData.GetItem(link[1])
+					color2 = (1, 1, 1, 1)
+					
+					colorBuffer.append(color2[0])
+					colorBuffer.append(color2[1])
+					colorBuffer.append(color2[2])
+					colorBuffer.append(color2[3])					
+					
+					x2 = pt2.GetValue(self.currentFrame, 0) / maxVal
+					z2 = -pt2.GetValue(self.currentFrame, 1) / maxVal
+					y2 = pt2.GetValue(self.currentFrame, 2) / maxVal
+					vertexBuffer.append(x2)
+					vertexBuffer.append(y2)
+					vertexBuffer.append(z2)
+				
+				if len(vertexStart) == 0:	
+					vertexStart.append(0)
+				else:
+					vertexStart.append(vertexStart[-1] + vertexCount[-1])
+				vertexCount.append(len(group) * 2)
+					
+			GL.glLineWidth(self.screen.parameterDialog.getGroupLinkWidth())
+			GL.glEnable(GL.GL_LINE_SMOOTH)
+			GL.glEnable(GL.GL_DEPTH_TEST)
+			self.openGLDrawMultiArray(self.markerShader, GL.GL_LINES, vertexBuffer, vertexStart, vertexCount, colorBuffer)
+			
+			
 	def openGLDraw(self, shader, primitive, vertex, color):
 		vertexBuffer = numpy.array(vertex, numpy.float32)
 		colorBuffer = numpy.array(color, numpy.float32)
@@ -356,7 +425,7 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 								 GL.GL_FALSE,
 								 0,
 								 colorBuffer)				
-		GL.glDrawArrays(primitive, 0, len(vertexBuffer))
+		GL.glDrawArrays(primitive, 0, len(vertex))
 		
 		GL.glDisableVertexAttribArray(posID)
 		GL.glDisableVertexAttribArray(colorID)
@@ -418,24 +487,32 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			
 	def mouseReleaseEvent(self, event):
 		if self.shiftPressed and self.mouseMoved and event.button() == QtCore.Qt.LeftButton:
-			self.mousePickRect(self.lastPos, event.pos(), self.ctrlPressed)
+			self.mousePickRect(self.lastPos, event.pos(), self.ctrlPressed)			
 		if not self.mouseMoved and event.button() == QtCore.Qt.LeftButton:
 			self.mousePick(event.pos(), self.ctrlPressed)			
 		elif not self.mouseMoved and event.button() == QtCore.Qt.MiddleButton:
 			self.screen.data.togglePaused()
+
+		self.mouseRect = []
 			
 			
 	def mouseMoveEvent(self, event):
+		if len(self.mouseRect) > 0 and not self.shiftPressed:
+			self.mouseRect = []
+			self.lastPos = event.pos()
+
 		dx = event.x() - self.lastPos.x()
 		dy = event.y() - self.lastPos.y()
 		
-		self.mouseMoved = True
-			
+		self.mouseMoved = True		
+
 		if event.buttons() & QtCore.Qt.LeftButton and not self.autoCam and not self.shiftPressed:
 			self.yRot += dy
 			self.zRot += dx
 			self.camera.setRotY(self.yRot / 16)
 			self.camera.setRotZ(self.zRot / 16)
+		elif event.buttons() & QtCore.Qt.LeftButton and not self.autoCam and self.shiftPressed:
+			self.mouseRect = [self.lastPos, event.pos()]
 		elif event.buttons() & QtCore.Qt.MiddleButton and not self.autoCam and not self.shiftPressed:
 			self.xTrans += dx
 			self.yTrans += dy
@@ -446,7 +523,7 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			self.camera.setTransZ(self.zTrans * 0.01)
 
 		if not self.shiftPressed:
-			self.lastPos = event.pos()
+			self.lastPos = event.pos()		
 		
 		
 	def wheelEvent(self, event):
@@ -475,27 +552,6 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			rayBottomLeft2 = self.camera.inverseProj(pBottomLeft[0], pBottomLeft[1], 1.0)
 			rayBottomRight1 = self.camera.inverseProj(pBottomRight[0], pBottomRight[1], -1.0)
 			rayBottomRight2 = self.camera.inverseProj(pBottomRight[0], pBottomRight[1], 1.0)
-			
-			# self.testVertexBuffer = []
-			# self.testColorBuffer = []
-			
-			# self.testVertexBuffer.append(rayTopLeft1)
-			# self.testVertexBuffer.append(rayTopLeft2)
-			# self.testVertexBuffer.append(rayTopRight1)
-			# self.testVertexBuffer.append(rayTopRight2)
-			# self.testVertexBuffer.append(rayBottomLeft1)
-			# self.testVertexBuffer.append(rayBottomLeft2)
-			# self.testVertexBuffer.append(rayBottomRight1)
-			# self.testVertexBuffer.append(rayBottomRight2)
-			
-			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
-			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
-			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
-			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
-			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
-			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
-			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
-			# self.testColorBuffer.append([1.0, 1.0, 1.0, 1.0])
 			
 			if not append:
 				self.selectedMarkers.clear()
@@ -531,16 +587,7 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			x = (x - viewport_width * 0.5) / (viewport_width * 0.5)
 			y = -(y - self.height() * 0.5) / (viewport_height * 0.5)
 			l1 = self.camera.inverseProj(x, y, -1.0)
-			l2 = self.camera.inverseProj(x, y, 1.0)		
-			
-			# self.testVertexBuffer = []
-			# self.testColorBuffer = []
-			
-			# self.testVertexBuffer.append(l1)
-			# self.testVertexBuffer.append(l2)
-			
-			# self.testColorBuffer.append([0.2, 0.8, 0.8, 1.0])
-			# self.testColorBuffer.append([0.8, 0.2, 0.8, 1.0])
+			l2 = self.camera.inverseProj(x, y, 1.0)
 
 			bestPick = [10000, -1, 10000]
 			max = self.screen.data.getMaxDataValue()
@@ -559,11 +606,6 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 					bestPick[0] = dist
 					bestPick[1] = i
 					bestPick[2] = cameraDist
-					
-					# self.testVertexBuffer.append(v)
-					# self.testVertexBuffer.append(vecClosest)
-					# self.testColorBuffer.append([1.0, 0.0, 0.0, 1.0])
-					# self.testColorBuffer.append([1.0, 1.0, 0.0, 1.0])
 			
 			if not append:
 				self.selectedMarkers.clear()
@@ -594,6 +636,8 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			self.maskTraj.add(i)
 			self.maskTag.add(i)
 		self.colorDict.clear()
+		
+		self.groups = []
 			
 			
 	def itemConfigChanged(self, item):

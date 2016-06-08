@@ -1,6 +1,8 @@
 import ntpath
 import btk
 import numpy
+import sys
+import copy
 
 from PyQt4 import QtCore
 
@@ -22,8 +24,6 @@ class Data(QtCore.QObject):
 		self.dataPath = '.'
 		self.dataFile = ''
 		
-		self.group = []
-		
 		self.paused = False
 		self.currentFrame = 0
 		self.maxDataValue = 0
@@ -41,9 +41,6 @@ class Data(QtCore.QObject):
 		
 		self.dataPath, self.dataFile = ntpath.split(ntpath.abspath(path))
 		
-		# print self.dataPath
-		# print self.dataFile
-		
 		try:
 			reader = btk.btkAcquisitionFileReader()
 			reader.SetFilename(path)
@@ -54,8 +51,6 @@ class Data(QtCore.QObject):
 			self.acq = None
 			self.timer.stop()
 			return
-		
-		# print self.acq
 		
 		if self.acq:
 			print 'C3D file loaded ' + path
@@ -72,14 +67,12 @@ class Data(QtCore.QObject):
 				point = self.acq.GetPoint(i)
 				for j in range(self.totalFrame):
 					pos = point.GetValues()[j,:]
-					# print pos
 					if pos[0] > self.maxDataValue:
 						self.maxDataValue = pos[0]
 					if pos[1] > self.maxDataValue:
 						self.maxDataValue = pos[1]
 					if pos[2] > self.maxDataValue:
 						self.maxDataValue = pos[2]
-			# print 'Max Data Value :', self.maxDataValue
 			
 			self.paused = False
 			self.currentFrame = 0
@@ -157,9 +150,39 @@ class Data(QtCore.QObject):
 		return self.maxDataValue
 		
 		
-	def createGroupFromSelection(self):
-		# need some spanning algo
-		pass
+	def createGroupFromSelection(self, selection):
+		if len(selection) < 2:
+			return []
+		group = []
+		openList = copy.copy(selection)
+		closeList = [openList.pop(0)]
+
+		while len(openList) > 0:
+			minOpenIndex = -1
+			minCloseIndex = -1
+			minPopIndex = -1
+			minDistance = sys.float_info.max
+			for closept in closeList:
+				pt1 = self.acq.GetPoint(closept)
+				x1 = pt1.GetValues()[self.currentFrame,0]
+				y1 = pt1.GetValues()[self.currentFrame,1]
+				z1 = pt1.GetValues()[self.currentFrame,2]
+				for i in range(len(openList)):
+					openpt = openList[i]
+					pt2 = self.acq.GetPoint(openpt)
+					x2 = pt2.GetValues()[self.currentFrame,0]
+					y2 = pt2.GetValues()[self.currentFrame,1]
+					z2 = pt2.GetValues()[self.currentFrame,2]
+					distance = numpy.linalg.norm([x1 - x2, y1 - y2, z1 - z2])
+					if distance < minDistance:
+						minOpenIndex = openpt
+						minCloseIndex = closept
+						minPopIndex = i
+						minDistance = distance
+			closeList.append(openList.pop(minPopIndex))
+			group.append([minOpenIndex, minCloseIndex])
+		
+		return group
 	
 			
 	def updateTimer(self):

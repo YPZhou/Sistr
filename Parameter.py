@@ -19,7 +19,7 @@ class Parameter(QtGui.QDialog):
 		self.nearPlaneLabel = QtGui.QLabel('Near Plane')
 		self.farPlaneLabel = QtGui.QLabel('Far Plane')
 		self.pointSizeLabel = QtGui.QLabel('Point size')
-		self.segmentWidthLabel = QtGui.QLabel('Segment Width')
+		self.groupLinkWidthLabel = QtGui.QLabel('Group Link Width')
 		self.coneAngleLabel = QtGui.QLabel('Cone Radius (deg)')
 		self.coneTransparencyLabel = QtGui.QLabel('Cone Transparency')
 		self.gridLineCountLabel = QtGui.QLabel('Grid Line Count')
@@ -37,7 +37,7 @@ class Parameter(QtGui.QDialog):
 		self.nearPlaneLineEdit = QtGui.QLineEdit(str(NEAR_PLANE))
 		self.farPlaneLineEdit = QtGui.QLineEdit(str(FAR_PLANE))
 		self.pointSizeLineEdit = QtGui.QLineEdit(str(POINT_SIZE))
-		self.segmentWidthLineEdit = QtGui.QLineEdit(str(SEGMENT_WIDTH))
+		self.groupLinkWidthLineEdit = QtGui.QLineEdit(str(GROUP_LINK_WIDTH))
 		self.coneAngleLineEdit = QtGui.QLineEdit(str(CONE_ANGLE))
 		self.coneTransparencyLineEdit = QtGui.QLineEdit(str(CONE_TRANSPARENCY))
 		self.gridLineCountLineEdit = QtGui.QLineEdit(str(GRID_LINE_COUNT))
@@ -58,7 +58,7 @@ class Parameter(QtGui.QDialog):
 		self.gridLayout.addWidget(self.nearPlaneLabel, 2, 0)
 		self.gridLayout.addWidget(self.farPlaneLabel, 3, 0)
 		self.gridLayout.addWidget(self.pointSizeLabel, 4, 0)
-		self.gridLayout.addWidget(self.segmentWidthLabel, 5, 0)
+		self.gridLayout.addWidget(self.groupLinkWidthLabel, 5, 0)
 		self.gridLayout.addWidget(self.coneAngleLabel, 6, 0)
 		self.gridLayout.addWidget(self.coneTransparencyLabel, 7, 0)
 		self.gridLayout.addWidget(self.gridLineCountLabel, 8, 0)
@@ -75,7 +75,7 @@ class Parameter(QtGui.QDialog):
 		self.gridLayout.addWidget(self.nearPlaneLineEdit, 2, 1)
 		self.gridLayout.addWidget(self.farPlaneLineEdit, 3, 1)
 		self.gridLayout.addWidget(self.pointSizeLineEdit, 4, 1)
-		self.gridLayout.addWidget(self.segmentWidthLineEdit, 5, 1)
+		self.gridLayout.addWidget(self.groupLinkWidthLineEdit, 5, 1)
 		self.gridLayout.addWidget(self.coneAngleLineEdit, 6, 1)
 		self.gridLayout.addWidget(self.coneTransparencyLineEdit, 7, 1)
 		self.gridLayout.addWidget(self.gridLineCountLineEdit, 8, 1)
@@ -126,9 +126,9 @@ class Parameter(QtGui.QDialog):
 			return POINT_SIZE
 			
 		
-	def getSegmentWidth(self):
+	def getGroupLinkWidth(self):
 		try:
-			return float(self.segmentWidthLineEdit.text())
+			return float(self.groupLinkWidthLineEdit.text())
 		except ValueError:
 			return SEGMENT_WIDTH
 			

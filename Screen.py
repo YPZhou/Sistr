@@ -112,7 +112,8 @@ class Screen(QtGui.QMainWindow):
 		
 		
 	def createGroupFromSelection(self):
-		self.data.createGroupFromSelection()
+		newGroup = self.data.createGroupFromSelection(list(self.glRenderArea.selectedMarkers))
+		self.glRenderArea.addGroup(newGroup)
 			
 			
 	def dragEnterEvent(self, event):
