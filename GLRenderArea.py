@@ -215,7 +215,7 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			
 			self.camera.setOrtho(False)
 		else:
-			self.camera.setCamPos((0, 0, -1))
+			self.camera.setCamPos((0, -1, 0))
 			self.camera.setTargetPos((0, 0, 0))
 			self.camera.setRotY(self.yRot / 16)
 			self.camera.setRotZ(self.zRot / 16)
@@ -240,18 +240,18 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			vertexBuffer = []
 			vertexBuffer.append((-max, 0, 0))
 			vertexBuffer.append((max, 0, 0))
-			vertexBuffer.append((0, 0, -max))
-			vertexBuffer.append((0, 0, max))
+			vertexBuffer.append((0, -max, 0))
+			vertexBuffer.append((0, max, 0))
 			for i in numpy.arange(spacing, max + spacing * 0.5, spacing):
-				vertexBuffer.append((-max, 0, i))
-				vertexBuffer.append((max, 0, i))
-				vertexBuffer.append((-max, 0, -i))
-				vertexBuffer.append((max, 0, -i))
+				vertexBuffer.append((-max, i, 0))
+				vertexBuffer.append((max, i, 0))
+				vertexBuffer.append((-max, -i, 0))
+				vertexBuffer.append((max, -i, 0))
 			
-				vertexBuffer.append((i, 0, -max))
-				vertexBuffer.append((i, 0, max))
-				vertexBuffer.append((-i, 0, -max))
-				vertexBuffer.append((-i, 0, max))
+				vertexBuffer.append((i, -max, 0))
+				vertexBuffer.append((i, max, 0))
+				vertexBuffer.append((-i, -max, 0))
+				vertexBuffer.append((-i, max, 0))
 				
 			colorBuffer = numpy.empty(len(vertexBuffer) * 4)
 			colorBuffer.fill(0.6)
@@ -264,9 +264,9 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			vertexBuffer.append((0, 0, 0))
 			vertexBuffer.append((max, 0, 0))
 			vertexBuffer.append((0, 0, 0))
-			vertexBuffer.append((0, 0, -max))
-			vertexBuffer.append((0, 0, 0))
 			vertexBuffer.append((0, max, 0))
+			vertexBuffer.append((0, 0, 0))
+			vertexBuffer.append((0, 0, max))
 			
 			colorBuffer = []
 			colorBuffer.append((1, 0, 0, 0.4))
@@ -307,8 +307,8 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 					colorBuffer.append(color[3])					
 					
 					x = pt.GetValue(self.currentFrame, 0) / maxVal
-					z = -pt.GetValue(self.currentFrame, 1) / maxVal
-					y = pt.GetValue(self.currentFrame, 2) / maxVal
+					y = pt.GetValue(self.currentFrame, 1) / maxVal
+					z = pt.GetValue(self.currentFrame, 2) / maxVal
 					vertexBuffer.append(x)
 					vertexBuffer.append(y)
 					vertexBuffer.append(z)
@@ -324,8 +324,8 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 						trajVertexCount.append(0)
 						for j in range(lowBound, highBound+1):
 							trajVertexBuffer.append(pt.GetValue(j, 0) / maxVal)
+							trajVertexBuffer.append(pt.GetValue(j, 1) / maxVal)
 							trajVertexBuffer.append(pt.GetValue(j, 2) / maxVal)
-							trajVertexBuffer.append(-pt.GetValue(j, 1) / maxVal)
 							trajColorBuffer.append(color[0])
 							trajColorBuffer.append(color[1])
 							trajColorBuffer.append(color[2])
@@ -367,8 +367,8 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 					colorBuffer.append(color1[3])					
 					
 					x1 = pt1.GetValue(self.currentFrame, 0) / maxVal
-					z1 = -pt1.GetValue(self.currentFrame, 1) / maxVal
-					y1 = pt1.GetValue(self.currentFrame, 2) / maxVal
+					y1 = pt1.GetValue(self.currentFrame, 1) / maxVal
+					z1 = pt1.GetValue(self.currentFrame, 2) / maxVal
 					vertexBuffer.append(x1)
 					vertexBuffer.append(y1)
 					vertexBuffer.append(z1)
@@ -382,8 +382,8 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 					colorBuffer.append(color2[3])					
 					
 					x2 = pt2.GetValue(self.currentFrame, 0) / maxVal
-					z2 = -pt2.GetValue(self.currentFrame, 1) / maxVal
-					y2 = pt2.GetValue(self.currentFrame, 2) / maxVal
+					y2 = pt2.GetValue(self.currentFrame, 1) / maxVal
+					z2 = pt2.GetValue(self.currentFrame, 2) / maxVal
 					vertexBuffer.append(x2)
 					vertexBuffer.append(y2)
 					vertexBuffer.append(z2)
@@ -515,12 +515,12 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			self.mouseRect = [self.lastPos, event.pos()]
 		elif event.buttons() & QtCore.Qt.MiddleButton and not self.autoCam and not self.shiftPressed:
 			self.xTrans += dx
-			self.yTrans += dy
-			self.camera.setTransX(self.xTrans * 0.01)
-			self.camera.setTransY(self.yTrans * 0.01)
-		elif event.buttons() & QtCore.Qt.RightButton and not self.autoCam and not self.shiftPressed:
 			self.zTrans -= dy
+			self.camera.setTransX(self.xTrans * 0.01)
 			self.camera.setTransZ(self.zTrans * 0.01)
+		elif event.buttons() & QtCore.Qt.RightButton and not self.autoCam and not self.shiftPressed:
+			self.yTrans += dy
+			self.camera.setTransY(self.yTrans * 0.01)
 
 		if not self.shiftPressed:
 			self.lastPos = event.pos()		
@@ -558,7 +558,7 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			max = self.screen.data.getMaxDataValue()
 			for i in range(self.frameData.GetItemNumber()):
 				pt = self.frameData.GetItem(i)
-				v = [pt.GetValue(self.currentFrame, 0) / max, pt.GetValue(self.currentFrame, 2) / max, -pt.GetValue(self.currentFrame, 1) / max]
+				v = [pt.GetValue(self.currentFrame, 0) / max, pt.GetValue(self.currentFrame, 1) / max, pt.GetValue(self.currentFrame, 2) / max]
 				vProj = self.camera.multiplyMatByVec(self.camera.mvp, v)
 				vProj = [vProj[0] / vProj[3], vProj[1] / vProj[3], vProj[2] / vProj[3]]
 				if vProj[0] > pTopLeft[0] and vProj[0] < pTopRight[0] and vProj[1] < pTopLeft[1] and vProj[1] > pBottomLeft[1]:
@@ -593,7 +593,7 @@ class GLRenderArea(QtOpenGL.QGLWidget):
 			max = self.screen.data.getMaxDataValue()
 			for i in range(self.frameData.GetItemNumber()):
 				pt = self.frameData.GetItem(i)
-				v = [pt.GetValue(self.currentFrame, 0) / max, pt.GetValue(self.currentFrame, 2) / max, -pt.GetValue(self.currentFrame, 1) / max]
+				v = [pt.GetValue(self.currentFrame, 0) / max, pt.GetValue(self.currentFrame, 1) / max, pt.GetValue(self.currentFrame, 2) / max]
 				vecLine = [l2[0] - l1[0], l2[1] - l1[1], l2[2] - l1[2]]
 				vecPoint = [v[0] - l1[0], v[1] - l1[1], v[2] - l1[2]]
 				length = self.camera.dot(vecLine, vecPoint) / math.sqrt(self.camera.length2(vecLine))
